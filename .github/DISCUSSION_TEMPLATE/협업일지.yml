@@ -1,11 +1,11 @@
 # .github/DISCUSSION_TEMPLATE/협업 일지.yml
-title: "이름 - 26년 0월 0일 협업 일지"
-labels: ["협업 일지"]
+title: "이름 - 26년 0월 0일 협업일지"
+labels: ["협업일지"]
 body:
   - type: markdown
     attributes:
       value: |
-        ## 📋 협업 일지
+        ## 📋 협업일지
         > 제목의 이름과 날짜는 직접 입력해 주세요!
 
   - type: textarea
