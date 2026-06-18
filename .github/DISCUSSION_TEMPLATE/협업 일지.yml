@@ -1,6 +1,6 @@
-# .github/DISCUSSION_TEMPLATE/협업-일지.yml
+# .github/DISCUSSION_TEMPLATE/협업 일지.yml
 title: "이름 - 26년 0월 0일 협업 일지"
-labels: ["협업-일지"]
+labels: ["협업 일지"]
 body:
   - type: markdown
     attributes:
