@@ -1,0 +1,18 @@
+# .github/workflows/notebook-check.yml
+name: Notebook Sanity Check
+on:
+  pull_request:
+    paths:
+      - '**.ipynb'
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check notebook outputs are stripped
+        run: |
+          pip install nbstripout
+          nbstripout --verify **/*.ipynb
