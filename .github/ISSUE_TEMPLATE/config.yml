@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🤝 협업 일지 (CollaborationLog)
+    url: https://github.com/Codeit-AI10-Part3-4Team/intermediate-project/discussions/new?category=collaborationlog
+    about: 일일 업무/협업 내용은 이슈가 아닌 Discussions의 협업 일지에 작성하세요.

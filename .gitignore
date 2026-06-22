@@ -124,6 +124,10 @@ mlruns/
 # 아래에 예시와 같이 화이트리스트 예외를 추가하세요 (무시 규칙보다 반드시 아래쪽에 위치해야 동작합니다).
 # 예시 : !models/demo_small.onnx
 
+# --- Coding Agent (개인별 설정, 동기화 안 함) ---
+# CLAUDE.md 등 코드 에이전트 가이드는 각자 설정이 달라 공유하지 않습니다.
+CLAUDE.md
+
 # --- OS & IDE Specifics ---
 .DS_Store
 .DS_Store?

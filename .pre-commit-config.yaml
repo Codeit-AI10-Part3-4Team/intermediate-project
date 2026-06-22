@@ -1,0 +1,21 @@
+# pre-commit hooks — 커밋 시점에 로컬에서 검증 (CI 실패 전 차단)
+# 설치:  pip install pre-commit && pre-commit install
+# 전체 수동 실행:  pre-commit run --all-files
+repos:
+  # 노트북 출력 셀 제거 — .gitattributes의 nbstripout filter와 동일 목적의 안전망.
+  # 신규 팀원이 `nbstripout --install`을 빠뜨려도 여기서 차단된다.
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.7.1
+    hooks:
+      - id: nbstripout
+
+  # 기본 위생 검사 (대용량 파일 커밋 방지 = PDF/HWP 원본 차단, 충돌 마커 등)
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=5120"]
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: detect-private-key   # LLM 키/비밀키 평문 커밋 방지
