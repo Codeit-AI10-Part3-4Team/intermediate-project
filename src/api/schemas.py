@@ -1,32 +1,14 @@
 # src/api/schemas.py
+# HTTP 입출력 전용 DTO만 둔다.
+# 도메인 모델(Document/Chunk/RetrievedChunk/RagResponse)과 계약(interfaces)은
+# src/rag_core 가 단일 원천이다. 응답 모델은 그대로 재사용한다 (의존 방향: api -> rag_core).
 from pydantic import BaseModel, Field
 
+from src.rag_core.schemas import RagResponse  # re-export for routers
 
-class Document(BaseModel):
-    doc_id: str
-    source_path: str
-    text: str
-    metadata: dict = Field(default_factory=dict)
-
-
-class Chunk(BaseModel):
-    chunk_id: str
-    doc_id: str
-    text: str
-    metadata: dict = Field(default_factory=dict)
-
-
-class RetrievedChunk(BaseModel):
-    chunk: Chunk
-    score: float
+__all__ = ["RagRequest", "RagResponse"]
 
 
 class RagRequest(BaseModel):
     query: str
     top_k: int = Field(default=5, ge=1, le=50)
-
-
-class RagResponse(BaseModel):
-    answer: str
-    sources: list[RetrievedChunk]
-    usage: dict = Field(default_factory=dict)

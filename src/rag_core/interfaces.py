@@ -1,4 +1,7 @@
-# src/api/interfaces.py
+# src/rag_core/interfaces.py
+# 파이프라인 각 단계가 따라야 할 계약(Protocol)의 단일 원천.
+# Protocol = 구조적 타이핑이므로 구현체는 이 클래스를 상속할 필요가 없다
+# (시그니처만 맞으면 자동으로 해당 타입으로 간주된다).
 from typing import Protocol, runtime_checkable
 
 from .schemas import Document, Chunk, RetrievedChunk, RagResponse

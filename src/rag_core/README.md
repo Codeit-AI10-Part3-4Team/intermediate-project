@@ -15,6 +15,13 @@ parsing → chunking → embedding → retrieval → prompts → llm
 - `prompts/` — 검색 결과를 LLM 입력 프롬프트로 구성 (담당: 지우님)
 - `llm/` — LLM 호출 및 응답 처리 (담당: 지우님)
 
+## 공유 계약 (contracts) — 단일 원천
+파이프라인 단계 간/서버와의 호출 구조를 통일하기 위한 **데이터 모델과 인터페이스의 단일 원천**입니다.
+- `schemas.py` — `Document`, `Chunk`, `RetrievedChunk`, `RagResponse` (단계 간 주고받는 도메인 모델)
+- `interfaces.py` — `Parser`, `Chunker`, `Embedder`, `Retriever`, `LLMClient`, `Orchestrator` (`typing.Protocol`)
+
+`api`를 포함한 모든 소비자는 이 두 파일을 import해서 사용합니다(여기에 두어야 `rag_core`가 `api`를 import하지 않는 의존 규칙이 지켜집니다). 인터페이스는 `Protocol`(구조적 타이핑)이므로 각 구현체는 상속 없이 시그니처만 맞추면 됩니다.
+
 ## 의존성 규칙(중요)
 - 이 패키지는 `src/api`를 import하지 않습니다.
 - 패키지 간에는 파이프라인 순서를 따르는 단방향 의존만 허용합니다 (예: `retrieval`이 `embedding`을 사용하는 것은 가능, 역방향은 지양).
