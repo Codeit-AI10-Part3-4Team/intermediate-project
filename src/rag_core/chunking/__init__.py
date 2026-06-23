@@ -1,1 +1,1 @@
-from .embedder import Embedder
+from .chunker import Chunker
