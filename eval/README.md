@@ -10,7 +10,7 @@ PM
 ## 구조 가이드
 ```
 eval/
-├── golden_dataset/      # 질의-정답 쌍 50개 (버전 관리 대상)
+├── golden_dataset/      # 질의-정답 쌍 101개 (버전 관리 대상)
 ├── metrics.py            # 평가 지표 계산 함수 (예: recall@k, faithfulness 등)
 └── eval_criteria.md       # 평가 기준 문서
 ```
