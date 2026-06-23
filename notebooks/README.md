@@ -9,6 +9,7 @@
 - `retrieval/` — 임베딩 모델·Retrieval 방식 후보 실험 (담당: 희원님)
 - `llm/` — LLM 후보 조사, 프롬프트 실험 (담당: 지우님)
 - `eval/` — 평가 계획, 골든 데이터셋 구축 과정 (담당: PM)
+- `test/` — `notebooks/` 구현과 연관된 단위/통합 테스트를 보관합니다.
 
 ## 규칙
 - 노트북 파일(`*.ipynb`)은 commit 전 출력(output)이 자동으로 제거됩니다 (`nbstripout` 적용, `.gitattributes` 참고).
