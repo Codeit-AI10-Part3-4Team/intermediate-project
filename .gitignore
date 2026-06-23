@@ -91,6 +91,8 @@ credentials/
 
 # --- Data & Large Artifacts (Never commit heavy datasets) ---
 *.csv
+# 골든셋 CSV에 대한 예외처리
+!golden_dataset*.csv
 *.xlsx
 *.jsonl
 *.parquet
