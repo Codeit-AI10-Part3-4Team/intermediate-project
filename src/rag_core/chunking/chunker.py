@@ -1,5 +1,5 @@
 import math
-from src.rag_core.schemas import Document, Chunk
+from rag_core.schemas import Document, Chunk
 
 def clean(val):
     # NaN / None → 빈 문자열 (Chroma 메타데이터는 NaN·None 불가)

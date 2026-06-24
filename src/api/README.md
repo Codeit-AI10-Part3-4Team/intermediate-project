@@ -28,7 +28,7 @@ api/
   - `src/rag_core/schemas.py` — `Document`, `Chunk`, `RetrievedChunk`, `RagResponse` (파이프라인이 주고받는 도메인 모델)
   - `src/rag_core/interfaces.py` — `Parser`, `Chunker`, `Embedder`, `Retriever`, `LLMClient`, `Orchestrator` (`typing.Protocol`)
 - **`api/schemas.py`에는 HTTP 입출력 전용 DTO만** 둡니다. 현재는 `RagRequest`(질의 입력)뿐이며,
-  응답 모델 `RagResponse`는 `rag_core`에서 import해 그대로 재사용합니다 (`from src.rag_core.schemas import RagResponse`).
+  응답 모델 `RagResponse`는 `rag_core`에서 import해 그대로 재사용합니다 (`from rag_core.schemas import RagResponse`).
 
 > **왜 `rag_core`에 두는가**: `rag_core`는 `api`를 import하지 않는다는 의존 규칙([../README.md](../README.md)) 때문입니다.
 > 계약을 `api`에 두면, `Document`를 반환해야 하는 `rag_core` 구현이 `api`를 import하게 되어 방향이 역전됩니다.

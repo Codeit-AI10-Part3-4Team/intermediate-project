@@ -1,6 +1,6 @@
 import json
-from src.rag_core.schemas import Document
-from src.rag_core.chunking.chunker import Chunker
+from rag_core.schemas import Document
+from rag_core.chunking.chunker import Chunker
 
 with open('data/parsed_json/D001.json', encoding='utf-8') as f:
     raw = json.load(f)
