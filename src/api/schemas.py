@@ -4,7 +4,7 @@
 # src/rag_core 가 단일 원천이다. 응답 모델은 그대로 재사용한다 (의존 방향: api -> rag_core).
 from pydantic import BaseModel, Field
 
-from src.rag_core.schemas import RagResponse  # re-export for routers
+from rag_core.schemas import RagResponse  # re-export for routers
 
 __all__ = ["RagRequest", "RagResponse"]
 

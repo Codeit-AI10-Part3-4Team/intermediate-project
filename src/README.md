@@ -15,4 +15,6 @@ src/api  ──depends on──>  src/rag_core
 
 ## 코딩 에이전트 참고
 - 새 코드를 작성할 위치를 정할 때: HTTP 요청/응답, 라우팅, 인증 등 웹 서버 관심사라면 `api/`, 문서 처리·검색·LLM 호출 등 도메인 로직이라면 `rag_core/`.
-- `rag_core` 하위 모듈에서 `from src.api import ...` 형태의 import가 보이면 설계 위반입니다.
+- `rag_core` 하위 모듈에서 `from api import ...` 형태의 import가 보이면 설계 위반입니다.
+
+> import 규칙: `pip install -e .`(src 레이아웃)로 설치하므로 `src.` 접두어 없이 `import rag_core` / `from api import ...`로 씁니다.
