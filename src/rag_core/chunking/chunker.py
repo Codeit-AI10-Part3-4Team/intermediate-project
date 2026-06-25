@@ -1,8 +1,7 @@
 import math
-from rag_core.schemas import Document, Chunk
+from src.rag_core.schemas import Document, Chunk
 
 def clean(val):
-    # NaN / None → 빈 문자열 (Chroma 메타데이터는 NaN·None 불가)
     if val is None:
         return ""
     if isinstance(val, float) and math.isnan(val):
@@ -37,31 +36,26 @@ def build_payload(doc: dict, section: dict, block: dict) -> dict:
 
 
 class Chunker:
-    MAX_CHUNK_SIZE = 1000
+    MAX_CHUNK_SIZE = 500
+    OVERLAP        = 100
 
     def chunk(self, document: Document) -> list[Chunk]:
         result = []
-
-        # document.metadata에 JSON 전체가 담겨있음
         doc = document.metadata
 
         warnings = doc.get("qa", {}).get("extraction_warnings", [])
         if warnings:
             print(f"  [WARN] {document.doc_id} — extraction_warnings: {warnings}")
 
-        meta = doc.get("metadata", {})
-        summary  = str(clean(meta.get("사업요약", "")))
+        meta     = doc.get("metadata", {})
         사업명   = str(clean(meta.get("사업명", "")))
         발주기관 = str(clean(meta.get("발주기관", "")))
+
+        prefix = f"[사업명] {사업명}\n[발주기관] {발주기관}\n\n"
 
         for section in doc.get("sections", []):
             chunks = self._chunk_section(section)
             for item in chunks:
-                prefix = (
-                    f"[사업명] {사업명}\n"
-                    f"[발주기관] {발주기관}\n"
-                    f"[요약] {summary}\n\n"
-                )
                 result.append(Chunk(
                     chunk_id=item["block"].get("block_id", "") if item["block"] else "",
                     doc_id=document.doc_id,
@@ -75,29 +69,36 @@ class Chunker:
         results = []
         current_text = ""
         last_text_block = None
+        last_table_content = None  # table merge용
 
         for block in section.get("blocks", []):
             if block.get("is_decorative"):
                 continue
+
             if block["type"] == "table":
                 if current_text.strip():
+                    # 직전 텍스트와 테이블 병합
+                    merged = current_text.strip() + "\n\n" + block["content"]
                     results.append({
-                        "content": f"[섹션: {header_prefix}]\n\n{current_text.strip()}",
-                        "block":   last_text_block,
+                        "content": f"[섹션: {header_prefix}]\n\n{merged}",
+                        "block":   block,
                     })
-                    current_text = ""
+                    # overlap: 현재 텍스트 끝부분 유지
+                    current_text = current_text[-self.OVERLAP:] if len(current_text) > self.OVERLAP else current_text
                     last_text_block = None
-                results.append({
-                    "content": f"[섹션: {header_prefix}]\n\n{block['content']}",
-                    "block":   block,
-                })
+                else:
+                    results.append({
+                        "content": f"[섹션: {header_prefix}]\n\n{block['content']}",
+                        "block":   block,
+                    })
             else:
                 if len(current_text) + len(block["content"]) > self.MAX_CHUNK_SIZE and current_text.strip():
                     results.append({
                         "content": f"[섹션: {header_prefix}]\n\n{current_text.strip()}",
                         "block":   last_text_block,
                     })
-                    current_text = block["content"] + "\n\n"
+                    # overlap: 이전 청크 끝부분을 다음 청크 시작에 포함
+                    current_text = current_text[-self.OVERLAP:] + block["content"] + "\n\n"
                 else:
                     current_text += block["content"] + "\n\n"
                 last_text_block = block
