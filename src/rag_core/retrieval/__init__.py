@@ -1,1 +1,1 @@
-from .retriever import ChromaRetriever
+from .retriever import Retriever

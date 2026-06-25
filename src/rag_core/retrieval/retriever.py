@@ -1,19 +1,28 @@
 from langchain_chroma import Chroma
-from rag_core.schemas import Chunk, RetrievedChunk
-from rag_core.embedding.embedder import load_embedding_model
+from sentence_transformers import CrossEncoder
+from src.rag_core.schemas import Chunk, RetrievedChunk
+from src.rag_core.embedding.embedder import load_embedding_model
 
-COLLECTION_NAME = "rfp_docs"
-BATCH_SIZE = 500
+COLLECTION_NAME  = "rfp_docs"
+BATCH_SIZE       = 500
+TOP_K_RETRIEVE   = 20
 
-class ChromaRetriever:
-    def __init__(self, embedding_model_name: str = "bge-m3", chroma_dir: str = "./data/chroma_db"):
+class Retriever:
+    def __init__(
+        self,
+        embedding_model_name: str = "bge-m3",
+        chroma_dir: str = "./data/vector_db_v4",
+        reranker_model_name: str = "BAAI/bge-reranker-large",
+        device: str = "cuda",
+    ):
         self.embedding_model = load_embedding_model(embedding_model_name)
         self.vectorstore = Chroma(
             collection_name=COLLECTION_NAME,
             embedding_function=self.embedding_model,
             persist_directory=chroma_dir,
         )
-    
+        self.reranker = CrossEncoder(reranker_model_name, device=device)
+
     def index(self, chunks: list[Chunk]) -> None:
         all_texts = [c.text for c in chunks]
         all_metas = [c.metadata for c in chunks]
@@ -28,15 +37,19 @@ class ChromaRetriever:
 
         print(f"\nChroma 저장 완료 (총 {self.vectorstore._collection.count()}개 청크)")
 
-
     def retrieve(self, query: str, top_k: int = 5) -> list[RetrievedChunk]:
-        results = self.vectorstore.similarity_search_with_relevance_scores(query, k=top_k)
-
-        if not results:
+        candidates = self.vectorstore.similarity_search_with_relevance_scores(
+            query, k=TOP_K_RETRIEVE
+        )
+        if not candidates:
             return []
 
+        pairs = [(query, doc.page_content) for doc, _ in candidates]
+        rerank_scores = self.reranker.predict(pairs)
+        ranked = sorted(zip(candidates, rerank_scores), key=lambda x: x[1], reverse=True)
+
         retrieved = []
-        for doc, score in results:
+        for (doc, _), score in ranked[:top_k]:
             chunk = Chunk(
                 chunk_id=doc.metadata.get("block_id", ""),
                 doc_id=doc.metadata.get("doc_id", ""),
