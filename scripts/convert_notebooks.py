@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 NOTEBOOK_DIR = PROJECT_ROOT / "notebooks"
-OUTPUT_DIR = PROJECT_ROOT / "src"
+OUTPUT_DIR = PROJECT_ROOT / "src/rag_core"
 
 EXCLUDE_PATTERNS = ["checkpoint", ".ipynb_checkpoints"]
 
