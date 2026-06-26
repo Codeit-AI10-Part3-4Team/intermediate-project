@@ -1,0 +1,14 @@
+[Unit]
+Description=JupyterHub (venv)
+After=network.target
+
+[Service]
+Type=simple
+Environment="PATH=/opt/jhub-venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+Environment="PYTHONPATH=/opt/jhub-venv/lib/python3.12/site-packages"
+ExecStart=/opt/jhub-venv/bin/jupyterhub \
+          -f /root/jupyterhub_config.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

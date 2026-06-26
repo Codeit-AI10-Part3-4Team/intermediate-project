@@ -7,15 +7,13 @@
 #
 # 출력 구조:
 #   deploy/
-#   ├── jupyterhub/jupyterhub_config.py   (API 키 값 제거)
+#   ├── jupyterhub/jupyterhub_config.py   (API 키 값 마스킹)
 #   ├── systemd/jupyterhub.service
 #   ├── systemd/ollama.service            (존재 시)
-#   ├── systemd/env/jupyterhub.env        (키 이름만 보존)
 #   ├── requirements.lock
 #   ├── apt_packages.txt
-#   ├── venv_freeze/                      (각 venv의 pip freeze 결과)
-#   │   ├── jupyterhub.txt
-#   │   └── <프로젝트_venv_이름>.txt
+#   ├── venv_freeze/
+#   │   └── jhub-venv.txt                 (basename of JUPYTERHUB_VENV)
 #   └── backup_meta.txt                   (백업 메타데이터)
 # =============================================================================
 
@@ -31,8 +29,6 @@ DEPLOY_DIR="${DEPLOY_DIR:-$SCRIPT_DIR/deploy}"
 JUPYTERHUB_CONFIG="/root/jupyterhub_config.py"
 JUPYTERHUB_SERVICE="/etc/systemd/system/jupyterhub.service"
 OLLAMA_SERVICE="/etc/systemd/system/ollama.service"
-# systemd drop-in env 파일 (없으면 스킵)
-JUPYTERHUB_ENV_FILE="/etc/jupyterhub/jupyterhub.env"
 # requirements.lock 위치 — 스크립트 기준 상위 디렉토리에서 탐색
 # 환경 변수로 재정의 가능: REQUIREMENTS_LOCK=/path/to/requirements.lock bash backup_env.sh
 REQUIREMENTS_LOCK="${REQUIREMENTS_LOCK:-$SCRIPT_DIR/../requirements.lock}"
@@ -71,7 +67,6 @@ init_dirs() {
     run mkdir -p \
         "$DEPLOY_DIR/jupyterhub" \
         "$DEPLOY_DIR/systemd" \
-        "$DEPLOY_DIR/systemd/env" \
         "$DEPLOY_DIR/venv_freeze"
 }
 
@@ -129,29 +124,6 @@ backup_systemd_services() {
         run cp "$src" "$DEPLOY_DIR/systemd/$name"
         log "  → $DEPLOY_DIR/systemd/$name"
     done
-}
-
-# ---------------------------------------------------------------------------
-# 3. systemd 환경 변수 파일 — 키 이름만 보존
-# ---------------------------------------------------------------------------
-backup_env_file() {
-    log "환경 변수 파일 백업 (키 이름만)..."
-
-    if [[ ! -f "$JUPYTERHUB_ENV_FILE" ]]; then
-        warn "env 파일 없음: $JUPYTERHUB_ENV_FILE (스킵)"
-        return
-    fi
-
-    local dest="$DEPLOY_DIR/systemd/env/jupyterhub.env"
-
-    if $DRY_RUN; then
-        echo "[DRY-RUN] 키 이름만 추출 → $dest"
-        return
-    fi
-
-    # 값 제거: KEY=VALUE → KEY=  (주석 줄은 그대로 유지)
-    sed -E 's/^([A-Z_][A-Z0-9_]*)=.*/\1=/' "$JUPYTERHUB_ENV_FILE" > "$dest"
-    log "  → $dest (값 제거, 키 이름만 보존)"
 }
 
 # ---------------------------------------------------------------------------
@@ -264,7 +236,7 @@ write_meta() {
         echo "jupyterhub_version=$("$JUPYTERHUB_VENV/bin/jupyterhub" --version 2>/dev/null || echo 'N/A')"
         echo "ollama_version=$(ollama --version 2>/dev/null || echo 'N/A')"
         echo "kernel=$(uname -r)"
-        echo "git_commit=$(git -C "$HOME" rev-parse --short HEAD 2>/dev/null || echo 'N/A')"
+        echo "git_commit=$(git -C "$SCRIPT_DIR" rev-parse --short HEAD 2>/dev/null || echo 'N/A')"
     } > "$dest"
 
     log "  → $dest"
@@ -280,7 +252,6 @@ main() {
     init_dirs
     backup_jupyterhub_config
     backup_systemd_services
-    backup_env_file
     backup_requirements
     backup_apt_packages
     backup_venv_freeze
