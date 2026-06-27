@@ -1,7 +1,7 @@
 from langchain_chroma import Chroma
 from sentence_transformers import CrossEncoder
-from src.rag_core.schemas import Chunk, RetrievedChunk
-from src.rag_core.embedding.embedder import load_embedding_model
+from rag_core.schemas import Chunk, RetrievedChunk
+from rag_core.embedding.embedder import load_embedding_model
 
 COLLECTION_NAME  = "rfp_docs"
 BATCH_SIZE       = 500

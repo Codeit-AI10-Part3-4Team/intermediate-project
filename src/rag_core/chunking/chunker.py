@@ -1,5 +1,5 @@
 import math
-from src.rag_core.schemas import Document, Chunk
+from rag_core.schemas import Document, Chunk
 
 def clean(val):
     if val is None:
