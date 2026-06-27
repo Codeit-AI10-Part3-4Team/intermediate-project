@@ -17,6 +17,11 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "chromadb>=0.4.0",
     "openai>=1.0.0",
+    # rag_core retrieval/embedding 런타임 의존성
+    "langchain-chroma>=0.1.0",        # retrieval: Chroma 벡터스토어 래퍼
+    "langchain-huggingface>=0.1.0",   # embedding: HuggingFaceEmbeddings (bge-m3)
+    "langchain-openai>=0.1.0",        # embedding: OpenAIEmbeddings
+    "sentence-transformers>=2.2.0",   # retrieval: CrossEncoder 리랭커
 ]
 
 # 개발 및 테스트 추가 의존성
