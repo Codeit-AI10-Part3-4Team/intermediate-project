@@ -5,6 +5,7 @@
 - 라우터 ↔ 스키마(RagRequest/RagResponse) ↔ 의존성 주입 배선이 동작하는지 검증.
 - 실제 LLM/검색은 호출하지 않는다 (use_mock=True 경로의 MockOrchestrator 사용).
 """
+
 import pytest
 from fastapi.testclient import TestClient
 

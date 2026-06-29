@@ -3,9 +3,10 @@ from sentence_transformers import CrossEncoder
 from rag_core.schemas import Chunk, RetrievedChunk
 from rag_core.embedding.embedder import load_embedding_model
 
-COLLECTION_NAME  = "rfp_docs"
-BATCH_SIZE       = 500
-TOP_K_RETRIEVE   = 20
+COLLECTION_NAME = "rfp_docs"
+BATCH_SIZE = 500
+TOP_K_RETRIEVE = 20
+
 
 class Retriever:
     def __init__(

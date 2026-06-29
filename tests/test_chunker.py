@@ -1,12 +1,21 @@
+# tests/test_chunker.py
 import json
-from rag_core.schemas import Document
+from pathlib import Path
+
+import pytest
+
 from rag_core.chunking.chunker import Chunker
+from rag_core.schemas import Document
 
-with open('data/parsed_json/D001.json', encoding='utf-8') as f:
-    raw = json.load(f)
+SAMPLE = Path("data/parsed_json/D001.json")
 
-doc = Document(doc_id=raw['doc_id'], source_path='', text='', metadata=raw)
-chunker = Chunker()
-chunks = chunker.chunk(doc)
-print(f'청크 수: {len(chunks)}')
-print(chunks[0].text[:200])
+
+@pytest.mark.skipif(not SAMPLE.exists(), reason="샘플 데이터(data/parsed_json/D001.json)가 없음")
+def test_chunker_on_sample():
+    raw = json.loads(SAMPLE.read_text(encoding="utf-8"))
+    doc = Document(doc_id=raw["doc_id"], source_path="", text="", metadata=raw)
+
+    chunks = Chunker().chunk(doc)
+
+    assert len(chunks) > 0
+    assert chunks[0].text

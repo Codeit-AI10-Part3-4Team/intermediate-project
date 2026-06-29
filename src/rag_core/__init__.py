@@ -15,5 +15,5 @@ __all__ = [
     "Embedder",
     "Retriever",
     "LLMClient",
-    "Orchestrator"
+    "Orchestrator",
 ]

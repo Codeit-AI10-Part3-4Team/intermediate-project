@@ -9,19 +9,13 @@ version = "0.1.0"
 description = "RAG-based RFP generation system"
 requires-python = ">=3.10"
 
-# 런타임 의존성
+# 런타임 의존성 (api 목업 + rag_core 계약/청킹에 필요한 최소 집합)
 dependencies = [
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.29.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
-    "chromadb>=0.4.0",
     "openai>=1.0.0",
-    # rag_core retrieval/embedding 런타임 의존성
-    "langchain-chroma>=0.1.0",        # retrieval: Chroma 벡터스토어 래퍼
-    "langchain-huggingface>=0.1.0",   # embedding: HuggingFaceEmbeddings (bge-m3)
-    "langchain-openai>=0.1.0",        # embedding: OpenAIEmbeddings
-    "sentence-transformers>=2.2.0",   # retrieval: CrossEncoder 리랭커
 ]
 
 # 개발 및 테스트 추가 의존성
@@ -30,9 +24,25 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
     "httpx>=0.27.0",
+    "ruff>=0.6.0",
     "nbconvert>=7.0.0",
     "ipykernel>=6.0.0",
 ]
+# rag_core retrieval/embedding 무거운 의존성 (torch 계열). 필요 시: pip install -e ".[retrieval]"
+retrieval = [
+    "chromadb>=0.4.0",
+    "langchain-chroma>=0.1.0",        # retrieval: Chroma 벡터스토어 래퍼
+    "langchain-huggingface>=0.1.0",   # embedding: HuggingFaceEmbeddings (bge-m3)
+    "langchain-openai>=0.1.0",        # embedding: OpenAIEmbeddings
+    "sentence-transformers>=2.2.0",   # retrieval: CrossEncoder 리랭커
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 # src 레이아웃: src/ 하위의 패키지(api, rag_core)를 최상위 import 이름으로 노출.
 # 따라서 코드는 `import rag_core` / `from api import ...` 형태로 사용한다 (src. 접두어 없음).
