@@ -17,29 +17,42 @@ on:
 
 jobs:
   lint:
-    name: Lint (ruff)
+    name: Lint & Type Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - run: pip install ruff
+          python-version: '3.12'  # pyproject.toml의 3.12과 싱크 정렬
+
+      - name: Install static analysis tools
+        run: pip install ruff mypy
+
       - name: ruff lint
         run: ruff check src tests
+
       - name: ruff format check
         run: ruff format --check src tests
+
+      # 정확한 인덴트로 mypy 스텝 추가
+      - name: Type check (mypy)
+        run: mypy
 
   test:
     name: Unit tests (pytest)
     runs-on: ubuntu-latest
+    # lint 작업이 성공해야만 test 작업이 실행되도록 설정 (선택 사항, 자원 절약)
+    needs: lint
     steps:
       - uses: actions/checkout@v4
+      
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.12'  # 파이썬 버전 통일
           cache: 'pip'
-      # core + dev 만 설치 (retrieval extra의 torch 계열은 제외하여 가볍게 유지).
-      # api 목업/계약 테스트는 무거운 의존성이 필요 없다.
+          
+      # core + dev 만 설치 (retrieval extra의 torch 계열은 제외하여 가볍게 유지)
       - run: pip install -e ".[dev]"
+      
       - run: pytest -v

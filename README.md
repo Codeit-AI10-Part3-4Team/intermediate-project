@@ -110,7 +110,7 @@ intermediate-project/
 
 ### 사전 요구사항
 
-- Python 3.11+
+- Python 3.12+
 - GCP VM (JupyterHub) 접속 권한
 - ChromaDB (공유 드라이브 및 VM)
 
