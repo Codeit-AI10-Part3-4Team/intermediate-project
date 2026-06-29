@@ -67,5 +67,13 @@ no_implicit_optional = true
 
 # 외부 대형 의존성 라이브러리 예외 처리 (CI 속도 최적화 및 패키지 미설치 대비)
 [[tool.mypy.overrides]]
-module = ["chromadb.*", "sentence_transformers.*", "langchain.*", "langchain_*", "torch.*"]
+module = [
+    "chromadb.*",
+    "sentence_transformers.*",
+    "langchain.*",
+    "langchain_chroma.*",
+    "langchain_huggingface.*",
+    "langchain_openai.*",
+    "torch.*",
+]
 ignore_missing_imports = true

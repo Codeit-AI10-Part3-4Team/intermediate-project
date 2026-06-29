@@ -26,8 +26,11 @@ jobs:
         with:
           python-version: '3.12'  # pyproject.toml의 3.12과 싱크 정렬
 
-      - name: Install static analysis tools
-        run: pip install ruff mypy
+      # mypy가 core 의존성(fastapi/pydantic/pydantic-settings)의 타입을 해석하려면
+      # 패키지가 설치돼 있어야 한다. retrieval extra(torch 계열)는 제외해 가볍게 유지하고,
+      # 그쪽 무거운 모듈은 [tool.mypy] overrides의 ignore_missing_imports로 처리.
+      - name: Install package + static analysis tools
+        run: pip install -e ".[dev]"
 
       - name: ruff lint
         run: ruff check src tests
