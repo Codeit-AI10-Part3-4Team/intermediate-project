@@ -29,9 +29,10 @@ DEPLOY_DIR="${DEPLOY_DIR:-$SCRIPT_DIR/deploy}"
 JUPYTERHUB_CONFIG="/root/jupyterhub_config.py"
 JUPYTERHUB_SERVICE="/etc/systemd/system/jupyterhub.service"
 OLLAMA_SERVICE="/etc/systemd/system/ollama.service"
-# requirements.lock 위치 — 스크립트 기준 상위 디렉토리에서 탐색
+# requirements.lock 위치 — repo 루트에서 탐색(스크립트가 repo 어디에 있든 동작)
 # 환경 변수로 재정의 가능: REQUIREMENTS_LOCK=/path/to/requirements.lock bash backup_env.sh
-REQUIREMENTS_LOCK="${REQUIREMENTS_LOCK:-$SCRIPT_DIR/../requirements.lock}"
+_REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || echo "$SCRIPT_DIR")"
+REQUIREMENTS_LOCK="${REQUIREMENTS_LOCK:-$_REPO_ROOT/requirements.lock}"
 # JupyterHub 전용 venv 경로 (pip freeze 대상)
 JUPYTERHUB_VENV="${JUPYTERHUB_VENV:-/opt/jhub-venv}"
 # 추가로 freeze할 venv 경로 목록 (공백 구분, 없으면 빈 문자열)
@@ -88,17 +89,30 @@ backup_jupyterhub_config() {
         return
     fi
 
-    # 마스킹 1: "sk-..." 형태의 OpenAI 계열 API 키 값을 안내 문구로 대체
-    #   "OPENAI_API_KEY": "sk-proj-xxxx"  →  "OPENAI_API_KEY": "키를 입력하세요"
-    #   단일/이중 따옴표 모두 처리
-    # 마스킹 2: api_key/token/password 등 키워드 줄의 값을 빈 문자열로 대체
-    sed -E \
-        -e 's/(["'"'"'])(sk-[A-Za-z0-9_-]+)\1/\1키를 입력하세요\1/g' \
-        -e 's/(api[_-]?key|api[_-]?secret|token|password|secret|credential)\s*=\s*["\x27][^"\x27]*["\x27]/\1 = ""/gI' \
-        "$JUPYTERHUB_CONFIG" \
-        > "$dest"
+    # 마스킹 규칙(값을 모두 "키를 입력하세요"로 통일 — 복구 가이드 grep과 호환):
+    #   1) "sk-..." 형태 토큰 값
+    #   2) keyword = "..." 할당 형태
+    #   3) "NAME": "..." 딕셔너리 형태 — NAME에 KEY/TOKEN/SECRET/PASSWORD/CREDENTIAL 포함 시
+    #      (c.Spawner.environment 딕셔너리의 비-sk 값까지 마스킹)
+    local mask_sed
+    mask_sed="$(mktemp)"
+    cat > "$mask_sed" <<'SED'
+s/(["'])(sk-[A-Za-z0-9_-]+)\1/\1키를 입력하세요\1/g
+s/(api[_-]?key|api[_-]?secret|token|password|secret|credential)[[:space:]]*=[[:space:]]*(["'])[^"']*\2/\1 = \2키를 입력하세요\2/gI
+s/(["'][A-Za-z0-9_]*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)[A-Za-z0-9_]*["'][[:space:]]*:[[:space:]]*)(["'])[^"']*\3/\1\3키를 입력하세요\3/gI
+SED
+    sed -E -f "$mask_sed" "$JUPYTERHUB_CONFIG" > "$dest"
+    rm -f "$mask_sed"
 
-    log "  → $dest (API 키 값 마스킹 완료)"
+    # 마스킹 검증 게이트: 알려진 비밀 prefix가 남으면 유출 위험 → 백업 중단
+    if grep -Eq '(sk-[A-Za-z0-9]|ghp_|gho_|hf_[A-Za-z0-9]|AKIA[0-9A-Z]|xox[baprs]-|-----BEGIN )' "$dest"; then
+        warn "마스킹 후에도 비밀로 의심되는 값이 남아 있습니다: $dest"
+        warn "  마스킹 규칙을 보강한 뒤 다시 실행하세요. 유출 방지를 위해 중단합니다."
+        rm -f "$dest"
+        exit 1
+    fi
+
+    log "  → $dest (API 키 값 마스킹 완료 · 검증 통과)"
 }
 
 # ---------------------------------------------------------------------------
@@ -259,8 +273,9 @@ main() {
 
     log "===== 백업 완료: $DEPLOY_DIR ====="
     log ""
-    log "다음 단계: git add/commit 으로 버전 관리에 포함하세요."
-    log "  git -C \$HOME add deploy/ && git commit -m 'chore: env snapshot $(date +%Y-%m-%d)'"
+    log "다음 단계: env 스냅샷을 backup_<날짜> 브랜치로 커밋·푸시"
+    log "  bash \"$SCRIPT_DIR/commit_env_snapshot.sh\""
+    log "  (단순 커밋만: git -C \"$SCRIPT_DIR\" add deploy/ && git -C \"$SCRIPT_DIR\" commit -m 'chore: env snapshot $(date +%Y-%m-%d)')"
 }
 
 main "$@"
