@@ -37,6 +37,15 @@ retrieval = [
     "langchain-openai>=0.1.0",        # embedding: OpenAIEmbeddings
     "sentence-transformers>=2.2.0",   # retrieval: CrossEncoder 리랭커
 ]
+# rag_core parsing 무거운 의존성 (HWP/PDF 추출). 필요 시: pip install -e ".[parsing]"
+# pyhwp는 0.1b15 핀 (구버전이라 상위 버전 호환 불확실 — Python 3.12 빌드는 확인됨).
+parsing = [
+    "pyhwp==0.1b15",         # parsing: HWP (hwp5.xmlmodel API + hwp5proc CLI)
+    "python-docx>=1.0.0",    # parsing: LibreOffice HWP→DOCX 폴백 경로
+    "pdfplumber>=0.11.0",    # parsing: PDF 표 영역 분리 추출
+    "lxml>=5.0.0",           # parsing: HWP XML 파싱
+    "pandas>=2.0.0",         # parsing: CSV 메타데이터 전처리
+]
 
 [tool.ruff]
 line-length = 100
@@ -78,5 +87,11 @@ module = [
     "rank_bm25.*",
     "kiwipiepy.*",
     "numpy.*",
+    # parsing extra (CI lint job엔 미설치 → 임포트 해석 불가하므로 무시)
+    "hwp5.*",
+    "docx.*",
+    "pdfplumber.*",
+    "lxml.*",
+    "pandas.*",
 ]
 ignore_missing_imports = true
