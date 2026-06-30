@@ -75,5 +75,8 @@ module = [
     "langchain_huggingface.*",
     "langchain_openai.*",
     "torch.*",
+    "rank_bm25.*",
+    "kiwipiepy.*",
+    "numpy.*",
 ]
 ignore_missing_imports = true
