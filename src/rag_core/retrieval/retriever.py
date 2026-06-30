@@ -2,7 +2,6 @@ from langchain_chroma import Chroma
 from rank_bm25 import BM25Okapi
 from kiwipiepy import Kiwi
 import numpy as np
-from sentence_transformers import CrossEncoder
 from rag_core.schemas import Chunk, RetrievedChunk
 from rag_core.embedding.embedder import load_embedding_model
 
