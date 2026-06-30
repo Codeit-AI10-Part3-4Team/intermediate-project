@@ -78,39 +78,47 @@ class Chunker:
 
             if block.get("needs_subsplit") and len(content) > self.MAX_CHUNK_SIZE:
                 if current_text.strip():
-                    results.append({
-                        "content": f"[섹션: {header_prefix}]\n\n{current_text.strip()}",
-                        "block":   last_text_block,
-                    })
-                    current_text = current_text[-self.OVERLAP:] if self.OVERLAP else ""
+                    results.append(
+                        {
+                            "content": f"[섹션: {header_prefix}]\n\n{current_text.strip()}",
+                            "block": last_text_block,
+                        }
+                    )
+                    current_text = current_text[-self.OVERLAP :] if self.OVERLAP else ""
                     last_text_block = None
                 i = 0
                 while i < len(content):
-                    sub = content[i:i+self.MAX_CHUNK_SIZE]
+                    sub = content[i : i + self.MAX_CHUNK_SIZE]
                     next_i = i + self.MAX_CHUNK_SIZE - self.OVERLAP
                     is_last = next_i >= len(content)
                     if is_last and len(sub) < self.OVERLAP * 2:
                         current_text = sub + "\n\n"
                         last_text_block = block
                     else:
-                        results.append({
-                            "content": f"[섹션: {header_prefix}]\n\n{sub}",
-                            "block":   block,
-                        })
+                        results.append(
+                            {
+                                "content": f"[섹션: {header_prefix}]\n\n{sub}",
+                                "block": block,
+                            }
+                        )
                     i = next_i
                 continue
 
             if block["type"] == "table":
                 combined = (current_text + "\n\n" + content).strip()
                 if len(combined) > self.MAX_CHUNK_SIZE and current_text.strip():
-                    results.append({
-                        "content": f"[섹션: {header_prefix}]\n\n{current_text.strip()}",
-                        "block":   last_text_block,
-                    })
-                    results.append({
-                        "content": f"[섹션: {header_prefix}]\n\n{content}",
-                        "block":   block,
-                    })
+                    results.append(
+                        {
+                            "content": f"[섹션: {header_prefix}]\n\n{current_text.strip()}",
+                            "block": last_text_block,
+                        }
+                    )
+                    results.append(
+                        {
+                            "content": f"[섹션: {header_prefix}]\n\n{content}",
+                            "block": block,
+                        }
+                    )
                     current_text = ""
                     last_text_block = None
                 else:
@@ -118,11 +126,13 @@ class Chunker:
                     last_text_block = block
             else:
                 if len(current_text) + len(content) > self.MAX_CHUNK_SIZE and current_text.strip():
-                    results.append({
-                        "content": f"[섹션: {header_prefix}]\n\n{current_text.strip()}",
-                        "block":   last_text_block,
-                    })
-                    prev_text = current_text[-self.OVERLAP:] if self.OVERLAP else ""
+                    results.append(
+                        {
+                            "content": f"[섹션: {header_prefix}]\n\n{current_text.strip()}",
+                            "block": last_text_block,
+                        }
+                    )
+                    prev_text = current_text[-self.OVERLAP :] if self.OVERLAP else ""
                     current_text = prev_text + content + "\n\n"
                 else:
                     current_text += content + "\n\n"

@@ -6,14 +6,16 @@ from rag_core.schemas import Chunk, RetrievedChunk
 from rag_core.embedding.embedder import load_embedding_model
 
 COLLECTION_NAME = "rfp_docs"
-BATCH_SIZE      = 500
+BATCH_SIZE = 500
 TOP_K_CANDIDATE = 100
-RRF_K           = 60
+RRF_K = 60
 
 _kiwi = Kiwi()
 
+
 def _tokenize(text: str) -> list[str]:
     return [token.form for token in _kiwi.tokenize(text)]
+
 
 class Retriever:
     def __init__(
@@ -77,7 +79,9 @@ class Retriever:
         combined = []
         for vec_rank, (doc, _) in enumerate(vec_hits):
             idx = self.text_to_idx.get(doc.page_content)
-            b_rank = bm25_rank.get(idx, TOP_K_CANDIDATE + 1) if idx is not None else TOP_K_CANDIDATE + 1
+            b_rank = (
+                bm25_rank.get(idx, TOP_K_CANDIDATE + 1) if idx is not None else TOP_K_CANDIDATE + 1
+            )
             rrf_score = 1 / (RRF_K + vec_rank + 1) + 1 / (RRF_K + b_rank)
             combined.append((doc, rrf_score))
 
