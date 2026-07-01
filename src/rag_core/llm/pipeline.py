@@ -16,6 +16,7 @@ from rag_core.prompts.prompt import TARGET_MODEL
 # Ollama 연동
 # ─────────────────────────────────────────────
 
+
 def get_model_options(model: str) -> dict:
     return {
         "temperature": 0.1,
@@ -44,7 +45,12 @@ def ask_ollama(model, prompt):
                 "elapsed_sec": elapsed,
                 "attempt": 1,
             }
-        return {"model": model, "answer": f"HTTP {res.status_code}", "elapsed_sec": elapsed, "attempt": 1}
+        return {
+            "model": model,
+            "answer": f"HTTP {res.status_code}",
+            "elapsed_sec": elapsed,
+            "attempt": 1,
+        }
     except Exception as e:
         elapsed = round(time.perf_counter() - start, 2)
         return {"model": model, "answer": f"오류 발생: {e}", "elapsed_sec": elapsed, "attempt": 1}
@@ -66,6 +72,7 @@ def unload_ollama_model(model_name: str):
 # 유틸 함수
 # ─────────────────────────────────────────────
 
+
 def format_money(value):
     try:
         v = float(value)
@@ -81,13 +88,13 @@ def format_rag_context(docs) -> str:
     for i, doc in enumerate(docs, 1):
         meta = doc.metadata
         block = f"""[검색 결과 {i}]
-문서명: {meta.get('문서명', '미확인')}
-사업명: {meta.get('사업명', '미확인')}
-발주기관: {meta.get('발주기관', '미확인')}
-사업금액: {format_money(meta.get('사업금액', 0))}
-입찰참여시작일: {meta.get('입찰참여시작일', '<unknown>')}
-입찰참여마감일: {meta.get('입찰참여마감일', '<unknown>')}
-섹션: {meta.get('header_path', '미확인')}
+문서명: {meta.get("문서명", "미확인")}
+사업명: {meta.get("사업명", "미확인")}
+발주기관: {meta.get("발주기관", "미확인")}
+사업금액: {format_money(meta.get("사업금액", 0))}
+입찰참여시작일: {meta.get("입찰참여시작일", "<unknown>")}
+입찰참여마감일: {meta.get("입찰참여마감일", "<unknown>")}
+섹션: {meta.get("header_path", "미확인")}
 내용:
 {doc.page_content[:800]}"""
         blocks.append(block)
@@ -147,6 +154,7 @@ def expand_requirement_table_query(query: str) -> str:
 
     return query
 
+
 class _RetrievedDocAdapter:
     """RetrievedChunk(.chunk.text/.chunk.metadata) -> 기존 코드가 기대하는
     doc.page_content / doc.metadata 형태로 변환하는 어댑터.
@@ -155,6 +163,7 @@ class _RetrievedDocAdapter:
     RetrievedChunk 리스트로 반환하게 되면서, 다운스트림 함수(format_rag_context,
     dedup_docs_by_doc_id 등)를 건드리지 않기 위해 추가함.
     """
+
     def __init__(self, retrieved_chunk):
         self.page_content = retrieved_chunk.chunk.text
         self.metadata = retrieved_chunk.chunk.metadata
@@ -203,7 +212,17 @@ def is_multi_doc_row(row) -> bool:
     if "다중문서" in question_type:
         return True
 
-    multi_keywords = ["비교", "두 사업", "다른 기관", "다른 사업", "비슷한", "공통점", "차이점", "전체", "가장"]
+    multi_keywords = [
+        "비교",
+        "두 사업",
+        "다른 기관",
+        "다른 사업",
+        "비슷한",
+        "공통점",
+        "차이점",
+        "전체",
+        "가장",
+    ]
     return any(keyword in question for keyword in multi_keywords)
 
 
@@ -236,7 +255,9 @@ def build_multi_queries_v4(row) -> list:
     qid = str(row.get("id", row.get("qid", row.get("question_id", row.get("golden_id", "")))))
 
     # Q063: Q062의 후속질문 - 울산/평택 문맥 복원
-    if qid == "Q063" or ("두 사업" in question and ("예산" in question or "사업비" in question or "규모" in question)):
+    if qid == "Q063" or (
+        "두 사업" in question and ("예산" in question or "사업비" in question or "규모" in question)
+    ):
         return [
             "울산광역시 2024년 버스정보시스템 확대 구축 및 기능개선 용역 사업금액 예산",
             "평택시 2024년도 평택시 버스정보시스템 BIS 구축사업 사업금액 예산",
@@ -280,7 +301,9 @@ def get_first_available_value(row, candidates) -> str:
 
 def build_single_doc_query_base(row) -> str:
     """단일문서 질문에서 기준 문서를 좁히기 위한 query base를 생성합니다."""
-    doc_id = get_first_available_value(row, ["doc_id", "target_doc_id", "source_doc_id", "document_id"])
+    doc_id = get_first_available_value(
+        row, ["doc_id", "target_doc_id", "source_doc_id", "document_id"]
+    )
     org = get_first_available_value(row, ["발주기관", "기관명"])
     project = get_first_available_value(row, ["사업명", "용역명", "사업명_원문"])
     file_name = get_first_available_value(row, ["file_name", "doc_name", "문서명"])
@@ -308,6 +331,7 @@ def build_multi_queries_v5(row) -> list:
 # ─────────────────────────────────────────────
 # 문서 수 제한
 # ─────────────────────────────────────────────
+
 
 def limit_docs_for_question(question, docs) -> list:
     """보안 유사 사업 질문은 상위 5개 문서만 사용합니다."""
@@ -339,8 +363,7 @@ def retrieve_single_doc_chunks_v5(row, retriever, k_each: int = 12, max_chunks: 
 
     selected_vector_doc_id = raw_docs[0].metadata.get("doc_id")
     same_doc_chunks = [
-        doc for doc in raw_docs
-        if doc.metadata.get("doc_id") == selected_vector_doc_id
+        doc for doc in raw_docs if doc.metadata.get("doc_id") == selected_vector_doc_id
     ]
     same_doc_chunks = same_doc_chunks[:max_chunks]
 
@@ -350,6 +373,7 @@ def retrieve_single_doc_chunks_v5(row, retriever, k_each: int = 12, max_chunks: 
 # ─────────────────────────────────────────────
 # 프롬프트 구성
 # ─────────────────────────────────────────────
+
 
 def build_doc_metadata_table(docs) -> str:
     rows = []
@@ -468,32 +492,44 @@ def ask_exaone_from_docs(question, docs, is_multi_doc=True, max_retries=2) -> di
 # 후처리
 # ─────────────────────────────────────────────
 
+
 def postprocess_exaone(text: str) -> dict:
     """외국어 혼입, 금액 환산, 빈 답변 등을 점검하고 정제합니다."""
     result = {"original": text, "processed": text, "flags": [], "blocked": False}
 
     foreign_patterns = {
-        "중국어": r'[\u4e00-\u9fff]',
-        "일본어": r'[\u3040-\u30ff]',
-        "키릴":   r'[\u0400-\u04ff]',
+        "중국어": r"[\u4e00-\u9fff]",
+        "일본어": r"[\u3040-\u30ff]",
+        "키릴": r"[\u0400-\u04ff]",
     }
     detected = [lang for lang, pat in foreign_patterns.items() if re.search(pat, text)]
     if detected:
         result["flags"].append(f"foreign_mix:{','.join(detected)}")
         lines = text.split("\n")
-        clean_lines = [line for line in lines if not any(re.search(pat, line) for pat in foreign_patterns.values())]
+        clean_lines = [
+            line
+            for line in lines
+            if not any(re.search(pat, line) for pat in foreign_patterns.values())
+        ]
         cleaned = "\n".join(clean_lines).strip()
         result["processed"] = cleaned if len(cleaned) >= 20 else text
 
-    money_patterns = [r'약\s*\d+억\s*원', r'약\s*\d+조\s*원', r'\(\s*약\s*\d+억', r'\(\s*약\s*\d+조']
+    money_patterns = [
+        r"약\s*\d+억\s*원",
+        r"약\s*\d+조\s*원",
+        r"\(\s*약\s*\d+억",
+        r"\(\s*약\s*\d+조",
+    ]
     if any(re.search(p, result["processed"]) for p in money_patterns):
         result["flags"].append("money_conversion_risk")
 
-    for pat in [r'\[문서 근거 부족\]', r'\[검색결과\s*\d+\]', r'판단\s*:\s*', r'출력\s*:\s*']:
+    for pat in [r"\[문서 근거 부족\]", r"\[검색결과\s*\d+\]", r"판단\s*:\s*", r"출력\s*:\s*"]:
         result["processed"] = re.sub(pat, "", result["processed"]).strip()
 
     if not result["processed"].strip():
-        result["processed"] = "죄송합니다. 답변을 생성하는 중 오류가 발생했습니다. 다시 질문해 주세요."
+        result["processed"] = (
+            "죄송합니다. 답변을 생성하는 중 오류가 발생했습니다. 다시 질문해 주세요."
+        )
         result["flags"].append("empty_response")
         result["blocked"] = True
 
@@ -560,10 +596,19 @@ def validate_amounts_against_metadata(answer: str, docs) -> dict:
 # 가드레일
 # ─────────────────────────────────────────────
 
+
 def is_score_prediction_question(question) -> bool:
     """기술점수/가격점수 예측형 질문 여부를 판단합니다."""
     question = str(question)
-    score_keywords = ["기술점수", "가격점수", "몇 점", "점수는", "점수 받을", "선정 가능성", "우선협상"]
+    score_keywords = [
+        "기술점수",
+        "가격점수",
+        "몇 점",
+        "점수는",
+        "점수 받을",
+        "선정 가능성",
+        "우선협상",
+    ]
     return any(keyword in question for keyword in score_keywords)
 
 
