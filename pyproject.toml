@@ -13,6 +13,7 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.29.0",
+    "python-multipart>=0.0.9",       # api: /upload 멀티파트 폼(UploadFile) 처리
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     "openai>=1.0.0",
