@@ -8,17 +8,21 @@ FastAPI 기반 서버 코드, 라우팅, 업로드 API를 보관합니다.
 
 ## 현재 작업
 - GitHub 레포/브랜치 전략 수립 (인프라 측면)
-- FastAPI 서버 구축
-- 업로드 API 구현
+- FastAPI 서버 구축 ✅ (`POST /rag`, `POST /upload` — 현재 `use_mock=True` 목업 경로)
+- 업로드 API 구현 ✅ (라우터·검증·transient 처리. 실제 적합성 판정은 예정)
 
 ## 구조 가이드
 ```
 api/
-├── main.py            # FastAPI 앱 엔트리포인트
+├── main.py            # FastAPI 앱 엔트리포인트 (lifespan + 라우터 등록)
+├── lifespan.py         # 시작 시 Settings 읽어 구현체를 app.state에 배선 (use_mock 전환)
+├── config.py           # Settings (pydantic-settings, env_prefix=APP_)
+├── mock.py             # Mock 구현 (MockOrchestrator / MockSuitabilityChecker 등)
 ├── routers/
-│   └── upload.py       # 업로드 엔드포인트
-├── schemas.py           # HTTP 입출력 전용 DTO (예: RagRequest)
-└── dependencies.py      # 공통 의존성 (인증, DB 세션 등)
+│   ├── rag.py          # POST /rag  (질의 → Orchestrator.run)
+│   └── upload.py        # POST /upload (RFP 적합성 검사 · transient)
+├── schemas.py           # HTTP 입출력 전용 DTO (RagRequest) + rag_core 응답 re-export
+└── dependencies.py      # app.state 구현체를 Depends로 주입 (타입은 rag_core Protocol)
 ```
 
 ## 서버 호출 구조 통일 (계약 = contracts)
@@ -26,9 +30,9 @@ api/
 
 - **도메인 모델 / 계약의 단일 원천은 `src/rag_core`** 입니다 (`api`가 아님).
   - `src/rag_core/schemas.py` — `Document`, `Chunk`, `RetrievedChunk`, `RagResponse` (파이프라인이 주고받는 도메인 모델)
-  - `src/rag_core/interfaces.py` — `Parser`, `Chunker`, `Embedder`, `Retriever`, `LLMClient`, `Orchestrator` (`typing.Protocol`)
+  - `src/rag_core/interfaces.py` — `Parser`, `Chunker`, `Embedder`, `Retriever`, `LLMClient`, `Orchestrator`, `SuitabilityChecker` (`typing.Protocol`)
 - **`api/schemas.py`에는 HTTP 입출력 전용 DTO만** 둡니다. 현재는 `RagRequest`(질의 입력)뿐이며,
-  응답 모델 `RagResponse`는 `rag_core`에서 import해 그대로 재사용합니다 (`from rag_core.schemas import RagResponse`).
+  응답 모델(`RagResponse`, `SuitabilityResult`)은 `rag_core`에서 import해 그대로 재사용합니다 (`from rag_core.schemas import RagResponse`).
 
 > **왜 `rag_core`에 두는가**: `rag_core`는 `api`를 import하지 않는다는 의존 규칙([../README.md](../README.md)) 때문입니다.
 > 계약을 `api`에 두면, `Document`를 반환해야 하는 `rag_core` 구현이 `api`를 import하게 되어 방향이 역전됩니다.
@@ -46,7 +50,7 @@ api/
 
 ## 산출물 연계
 - `rag_core/` 패키지의 함수를 호출해 실제 파싱/Retrieval/LLM 응답을 생성합니다.
-- 업로드된 문서는 `data/`에 저장하거나 GCP 저장소 경로로 전달합니다(파일 직접 커밋 금지).
+- **업로드 문서는 transient입니다**: 적합성 검사용으로 임시 파일로만 받고 응답 시점에 폐기하며, `data/`·DB·코퍼스에 **영속 저장하지 않습니다**(docs/architecture.md §4). 참조 코퍼스는 read-only.
 
 ## 코딩 에이전트 참고
 - 비즈니스 로직(파싱, 청킹, Retrieval, 프롬프트 구성, LLM 호출)을 라우터 함수 안에 직접 작성하지 마세요. 반드시 `rag_core`의 함수를 호출하는 방식으로 작성합니다.

@@ -18,7 +18,7 @@ flowchart LR
 
     subgraph API["src/api · FastAPI 서빙"]
         M["main.py (app)"]
-        RU["routers/upload.py · RFP 적합성 검사(업로드·transient) · 예정"]
+        RU["routers/upload.py · RFP 적합성 검사(업로드·transient) · 라우터 구현/Mock 판정"]
         RG["routers/rag.py · POST /rag"]
         DEP["dependencies.py"]
         DTO["schemas.py · DTO(RagRequest/Response)"]
@@ -64,7 +64,7 @@ flowchart LR
 - **프론트엔드 (웹 UI)** `예정` — 질의 입력·답변/근거 표시, (적합성 검사용) 문서 업로드 UI. FastAPI에 HTTP로 요청.
 - **API 레이어 (`src/api`)** — 웹 서버 관심사만 담당(thin):
   - `main.py` — FastAPI 엔트리포인트, `lifespan`·라우터 등록.
-  - `routers/upload.py` `예정` — 사용자가 올린 문서의 **RFP 적합성 검사**(참조 코퍼스와 비교). 업로드 문서는 **DB에 적재하지 않고 transient**로 처리.
+  - `routers/upload.py` — 사용자가 올린 문서의 **RFP 적합성 검사**(참조 코퍼스와 비교). `POST /upload`: 형식(hwp/pdf)·크기 검증 → 임시 파일 저장 → `SuitabilityChecker.check()` → **응답 후 임시 파일 폐기**. 업로드 문서는 **DB에 적재하지 않고 transient**. 실제 판정 로직은 예정이라 현재 `use_mock=True`에서 `MockSuitabilityChecker` 사용.
   - `routers/rag.py` — `POST /rag`. 요청 검증 → `Orchestrator.run()` 호출 → 응답 변환(비즈니스 로직 없음).
   - `schemas.py` — HTTP 전용 DTO. `RagRequest`(입력) 정의, `RagResponse`는 `rag_core`에서 re-export.
   - `dependencies.py` — `app.state`의 구현체를 `Depends`로 라우터에 주입(타입은 `rag_core`의 Protocol).
@@ -72,8 +72,8 @@ flowchart LR
   - `mock.py` — `MockRetriever`/`MockLLM`/`MockOrchestrator`(로컬·테스트용, `use_mock=True`).
 - **도메인 코어 (`src/rag_core`)** — RFP 처리 로직, FastAPI 비의존:
   - `pipeline.py · Orchestrator` `예정` — 단계들을 **조합만** 함. `run(query, top_k) -> RagResponse`.
-  - `schemas.py` / `interfaces.py` — `Document`·`Chunk`·`RetrievedChunk`·`RagResponse` 및 `Parser`·`Chunker`·`Embedder`·`Retriever`·`LLMClient`·`Orchestrator`(Protocol). **단일 원천**.
-  - `parsing` `예정` — PDF/HWP → 텍스트/구조 추출(코퍼스 구축·업로드 검사 양쪽에서 사용).
+  - `schemas.py` / `interfaces.py` — `Document`·`Chunk`·`RetrievedChunk`·`RagResponse`·`SuitabilityResult` 및 `Parser`·`Chunker`·`Embedder`·`Retriever`·`LLMClient`·`Orchestrator`·`SuitabilityChecker`(Protocol). **단일 원천**.
+  - `parsing` — PDF/HWP → 텍스트/구조 추출(코퍼스 구축·업로드 검사 양쪽에서 사용). 진입점 `RfpParser`(Parser 계약, `parse(file_path)->Document`), 추출 로직은 `pipeline.py`.
   - `chunking` — 섹션/표 기반 분할(사업명·발주기관 등 메타 prefix 부여).
   - `embedding` — `bge-m3`로 텍스트 벡터화.
   - `retrieval` — Chroma 참조 코퍼스에서 유사도 검색 후 `bge-reranker`로 리랭크(**read-only**).
@@ -153,7 +153,7 @@ flowchart LR
 
 ---
 
-## 4) 업로드 RFP 적합성 검사 흐름 (예정)
+## 4) 업로드 RFP 적합성 검사 흐름 (라우터 구현 · 실판정 예정)
 
 > 업로드 문서는 **참조 코퍼스에 적재하지 않습니다.** 참조 코퍼스를 기준으로 "이 문서가 RFP로서 적합한지"를 판정한 뒤 결과만 반환하고, 업로드 데이터는 폐기(transient)합니다.
 
@@ -169,11 +169,13 @@ flowchart LR
 
 ### 단계 세부 설명
 
-1. **업로드(transient)** `예정` — 사용자가 임의 문서 업로드(`routers/upload`). 영속 저장하지 않음.
-2. **파싱·임베딩** — 업로드 문서를 파싱 후 `bge-m3`로 임베딩.
+1. **업로드(transient)** — 사용자가 임의 문서 업로드(`POST /upload`). 형식(hwp/pdf)·크기 검증 후 임시 파일로만 받고, 응답 시점에 폐기(영속 저장 없음).
+2. **파싱·임베딩** — 업로드 문서를 `RfpParser`로 파싱 후 `bge-m3`로 임베딩.
 3. **참조 비교(retrieval)** — 참조 코퍼스에서 유사 RFP 청크를 검색(read-only)해 비교 근거 확보.
 4. **적합성 판정(llm)** — 참조 근거를 바탕으로 LLM이 "RFP 적합성"을 판정(누락 항목·형식 등 피드백 포함 가능).
-5. **결과 반환** — 적합성 결과만 응답. **업로드 문서·중간 산출물은 DB에 남기지 않음.**
+5. **결과 반환** — `SuitabilityResult`(is_suitable·score·reasons·sources)만 응답. **업로드 문서·중간 산출물은 DB에 남기지 않음.**
+
+> 구현 현황: 라우터·`SuitabilityChecker` 계약·`SuitabilityResult`·`MockSuitabilityChecker`는 구현됨. 2~4단계를 조합하는 **실제 `SuitabilityChecker` 구현은 예정**(llm/prompts 단계 완성 후 `use_mock=False` 경로에서 배선).
 
 ---
 
