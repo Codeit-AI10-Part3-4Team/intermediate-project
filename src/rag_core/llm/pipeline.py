@@ -53,7 +53,12 @@ def ask_ollama(model, prompt):
         }
     except Exception as e:
         elapsed = round(time.perf_counter() - start, 2)
-        return {"model": model, "answer": f"오류 발생: {e}", "elapsed_sec": elapsed, "attempt": 1}
+        return {
+            "model": model,
+            "answer": f"오류 발생: {e}",
+            "elapsed_sec": elapsed,
+            "attempt": 1,
+        }
 
 
 def unload_ollama_model(model_name: str):
@@ -190,7 +195,11 @@ def retrieve_multi_query(queries: list, retriever, k_each: int = 3) -> list:
         docs = [_RetrievedDocAdapter(rc) for rc in retrieved]
         for doc in docs:
             meta = doc.metadata
-            key = (meta.get("doc_id", ""), meta.get("header_path", ""), doc.page_content[:50])
+            key = (
+                meta.get("doc_id", ""),
+                meta.get("header_path", ""),
+                doc.page_content[:50],
+            )
             if key not in seen:
                 all_docs.append(doc)
                 seen.add(key)
@@ -252,11 +261,14 @@ def build_queries_for_row(row) -> list:
 def build_multi_queries_v4(row) -> list:
     """v4: 다중문서 비교/후속질문 query를 명시적으로 분리합니다."""
     question = str(row.get("question", ""))
-    qid = str(row.get("id", row.get("qid", row.get("question_id", row.get("golden_id", "")))))
+    qid = str(
+        row.get("id", row.get("qid", row.get("question_id", row.get("golden_id", ""))))
+    )
 
     # Q063: Q062의 후속질문 - 울산/평택 문맥 복원
     if qid == "Q063" or (
-        "두 사업" in question and ("예산" in question or "사업비" in question or "규모" in question)
+        "두 사업" in question
+        and ("예산" in question or "사업비" in question or "규모" in question)
     ):
         return [
             "울산광역시 2024년 버스정보시스템 확대 구축 및 기능개선 용역 사업금액 예산",
@@ -271,7 +283,12 @@ def build_multi_queries_v4(row) -> list:
         ]
 
     # Q015: 교육/학습 관련 다중문서 종합
-    if "교육" in question or "학습" in question or "이러닝" in question or "LMS" in question:
+    if (
+        "교육" in question
+        or "학습" in question
+        or "이러닝" in question
+        or "LMS" in question
+    ):
         return [
             "이러닝시스템 운영 용역 교육 콘텐츠 LMS 발주기관 사업금액",
             "LMS 학습지원시스템 기능개선 교육 학습 발주기관 사업금액",
@@ -353,7 +370,9 @@ def limit_docs_for_question_v5(question, docs, row=None) -> list:
     return limit_docs_for_question(question, docs)
 
 
-def retrieve_single_doc_chunks_v5(row, retriever, k_each: int = 12, max_chunks: int = 8):
+def retrieve_single_doc_chunks_v5(
+    row, retriever, k_each: int = 12, max_chunks: int = 8
+):
     """단일문서 질문용 검색 함수. 기준 문서의 chunk를 여러 개 유지합니다."""
     queries = build_multi_queries_v5(row)
     raw_docs = retrieve_multi_query(queries, retriever, k_each=k_each)
@@ -495,12 +514,7 @@ def ask_exaone_from_docs(question, docs, is_multi_doc=True, max_retries=2) -> di
 
 def postprocess_exaone(text: str) -> dict:
     """외국어 혼입, 금액 환산, 빈 답변 등을 점검하고 정제합니다."""
-    result: dict[str, str | list[str] | bool] = {
-        "original": text,
-        "processed": text,
-        "flags": [],
-        "blocked": False,
-    }
+    result: dict = {"original": text, "processed": text, "flags": [], "blocked": False}
 
     foreign_patterns = {
         "중국어": r"[\u4e00-\u9fff]",
@@ -528,7 +542,12 @@ def postprocess_exaone(text: str) -> dict:
     if any(re.search(p, result["processed"]) for p in money_patterns):
         result["flags"].append("money_conversion_risk")
 
-    for pat in [r"\[문서 근거 부족\]", r"\[검색결과\s*\d+\]", r"판단\s*:\s*", r"출력\s*:\s*"]:
+    for pat in [
+        r"\[문서 근거 부족\]",
+        r"\[검색결과\s*\d+\]",
+        r"판단\s*:\s*",
+        r"출력\s*:\s*",
+    ]:
         result["processed"] = re.sub(pat, "", result["processed"]).strip()
 
     if not result["processed"].strip():
@@ -562,7 +581,7 @@ def validate_amounts_against_metadata(answer: str, docs) -> dict:
     Returns:
         dict: {"flags": [...], "mismatches": [(answer_amount, closest_metadata_amount), ...]}
     """
-    result: dict[str, list] = {"flags": [], "mismatches": []}
+    result: dict = {"flags": [], "mismatches": []}
     if not isinstance(answer, str) or not answer.strip():
         return result
 
@@ -579,7 +598,9 @@ def validate_amounts_against_metadata(answer: str, docs) -> dict:
     if not valid_amounts:
         return result
 
-    answer_amounts = [int(m.replace(",", "")) for m in re.findall(r"[\d,]+(?=원)", answer)]
+    answer_amounts = [
+        int(m.replace(",", "")) for m in re.findall(r"[\d,]+(?=원)", answer)
+    ]
 
     for amt in answer_amounts:
         if amt in valid_amounts:
