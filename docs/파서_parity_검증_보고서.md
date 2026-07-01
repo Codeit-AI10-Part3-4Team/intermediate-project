@@ -54,6 +54,6 @@ parity **판정 로직 자체의 정확성**을 합성 JSON 픽스처로 검증�
 # 단위 테스트 (로컬)
 python -m pytest tests/test_parity_check_parsing.py -q
 
-# 실제 parity 비교 (golden/candidate JSON 디렉토리 필요 — 아래 A2)
+# 실제 parity 비교 (golden/candidate JSON 디렉토리 필요)
 python scripts/parity_check_parsing.py --golden ./golden/docs --candidate ./new/docs [--verbose]
 ```
