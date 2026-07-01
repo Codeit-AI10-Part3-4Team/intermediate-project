@@ -7,9 +7,9 @@ exaone3.5:7.8b 기반 RAG 파이프라인 핵심 함수 모음.
 import re
 import time
 
-import requests
+import requests  # type: ignore[import-untyped]
 
-from rag_core.prompts.prompt import TARGET_MODEL
+from rag_core.prompts.builder import TARGET_MODEL
 
 
 # ─────────────────────────────────────────────
@@ -495,7 +495,12 @@ def ask_exaone_from_docs(question, docs, is_multi_doc=True, max_retries=2) -> di
 
 def postprocess_exaone(text: str) -> dict:
     """외국어 혼입, 금액 환산, 빈 답변 등을 점검하고 정제합니다."""
-    result = {"original": text, "processed": text, "flags": [], "blocked": False}
+    result: dict[str, str | list[str] | bool] = {
+        "original": text,
+        "processed": text,
+        "flags": [],
+        "blocked": False,
+    }
 
     foreign_patterns = {
         "중국어": r"[\u4e00-\u9fff]",
@@ -557,7 +562,7 @@ def validate_amounts_against_metadata(answer: str, docs) -> dict:
     Returns:
         dict: {"flags": [...], "mismatches": [(answer_amount, closest_metadata_amount), ...]}
     """
-    result = {"flags": [], "mismatches": []}
+    result: dict[str, list] = {"flags": [], "mismatches": []}
     if not isinstance(answer, str) or not answer.strip():
         return result
 
