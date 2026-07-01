@@ -4,7 +4,7 @@
 # (시그니처만 맞으면 자동으로 해당 타입으로 간주된다).
 from typing import Protocol, runtime_checkable
 
-from .schemas import Document, Chunk, RetrievedChunk, RagResponse
+from .schemas import Document, Chunk, RetrievedChunk, RagResponse, SuitabilityResult
 
 
 @runtime_checkable
@@ -36,3 +36,9 @@ class LLMClient(Protocol):
 @runtime_checkable
 class Orchestrator(Protocol):
     def run(self, query: str, top_k: int) -> RagResponse: ...
+
+
+@runtime_checkable
+class SuitabilityChecker(Protocol):
+    # 업로드 문서(transient)의 RFP 적합성 판정: parse → embed → 참조 코퍼스 비교 → llm 판정.
+    def check(self, file_path: str) -> SuitabilityResult: ...

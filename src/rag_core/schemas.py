@@ -27,3 +27,13 @@ class RagResponse(BaseModel):
     answer: str
     sources: list[RetrievedChunk]
     usage: dict = Field(default_factory=dict)
+
+
+class SuitabilityResult(BaseModel):
+    # 업로드 문서의 RFP 적합성 검사 결과. 업로드 데이터는 저장하지 않고(transient)
+    # 이 결과만 반환한다 (docs/architecture.md §4).
+    is_suitable: bool
+    score: float
+    reasons: list[str] = Field(default_factory=list)  # 누락 항목·형식 등 피드백
+    sources: list[RetrievedChunk] = Field(default_factory=list)  # 참조 코퍼스 비교 근거
+    usage: dict = Field(default_factory=dict)
