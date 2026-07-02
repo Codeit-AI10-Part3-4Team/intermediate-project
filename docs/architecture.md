@@ -14,7 +14,7 @@
 
 ```mermaid
 flowchart LR
-    FE["프론트엔드 (웹 UI) · 예정"]
+    FE["프론트엔드 (frontend/ · Streamlit)"]
 
     subgraph API["src/api · FastAPI 서빙"]
         M["main.py (app)"]
@@ -61,7 +61,7 @@ flowchart LR
 
 ### 구성부 세부 설명
 
-- **프론트엔드 (웹 UI)** `예정` — 질의 입력·답변/근거 표시, (적합성 검사용) 문서 업로드 UI. FastAPI에 HTTP로 요청.
+- **프론트엔드 (웹 UI, `frontend/`)** — Streamlit 앱. 질의 입력·답변/근거 표시(`views/rag_query.py`), 적합성 검사용 문서 업로드(`views/upload_check.py`). FastAPI에 **HTTP로만** 요청하며 `rag_core`/`api`를 import하지 않음(백엔드 목업↔실제 전환에 무관). VM 배포는 FE 8501만 외부 개방, API는 loopback 8090 — `deploy/systemd/rfp-*.service`·`frontend/README.md` 참고.
 - **API 레이어 (`src/api`)** — 웹 서버 관심사만 담당(thin):
   - `main.py` — FastAPI 엔트리포인트, `lifespan`·라우터 등록.
   - `routers/upload.py` — 사용자가 올린 문서의 **RFP 적합성 검사**(참조 코퍼스와 비교). `POST /upload`: 형식(hwp/pdf)·크기 검증 → 임시 파일 저장 → `SuitabilityChecker.check()` → **응답 후 임시 파일 폐기**. 업로드 문서는 **DB에 적재하지 않고 transient**. 실제 판정 로직은 예정이라 현재 `use_mock=True`에서 `MockSuitabilityChecker` 사용.
