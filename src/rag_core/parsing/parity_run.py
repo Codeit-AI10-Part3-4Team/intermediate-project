@@ -117,7 +117,9 @@ def main() -> int:
     ap.add_argument("--files-dir", required=True, type=Path, help="원본 HWP/PDF 폴더")
     ap.add_argument("--csv", required=True, type=Path, help="파서용 메타 CSV (data_list.csv)")
     ap.add_argument("--golden", required=True, type=Path, help="노트북 golden docs/ 폴더")
-    ap.add_argument("--out", required=True, type=Path, help="candidate 출력 루트 (하위에 docs/ 생성)")
+    ap.add_argument(
+        "--out", required=True, type=Path, help="candidate 출력 루트 (하위에 docs/ 생성)"
+    )
     ap.add_argument("--doc-ids", nargs="*", default=None, help="일부만 처리 (예: D001 D002)")
     ap.add_argument("--verbose", action="store_true", help="parity 일치 문서도 모두 출력")
     args = ap.parse_args()
