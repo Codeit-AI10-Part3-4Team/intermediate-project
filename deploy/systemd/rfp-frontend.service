@@ -17,6 +17,8 @@ Type=simple
 User=seen
 WorkingDirectory=/home/seen/intermediate-project/frontend
 Environment=RAG_API_BASE_URL=http://127.0.0.1:8090
+# streamlit의 일부 의존성(protobuf 등)이 공용 venv에 있음 — rfp-api.service 주석 참고
+Environment=PYTHONPATH=/opt/jhub-venv/lib/python3.12/site-packages
 ExecStart=/home/seen/ai/bin/streamlit run app.py
 Restart=on-failure
 RestartSec=3

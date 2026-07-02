@@ -15,7 +15,10 @@ After=network.target
 Type=simple
 User=seen
 WorkingDirectory=/home/seen/intermediate-project
-# venv(~/ai, --system-site-packages)에 `pip install -e ".[frontend]"` 완료 상태 기준
+# ~/ai venv는 일부 의존성(uvicorn 등)을 공용 venv에서 PYTHONPATH로 빌려 씀 —
+# JupyterHub 터미널과 동일한 배선(jupyterhub.service 참고). systemd는 빈 환경으로
+# 시작하므로 명시하지 않으면 ModuleNotFoundError로 즉사한다.
+Environment=PYTHONPATH=/opt/jhub-venv/lib/python3.12/site-packages
 ExecStart=/home/seen/ai/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8090
 Restart=on-failure
 RestartSec=3
