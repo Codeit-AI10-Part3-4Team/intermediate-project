@@ -1,14 +1,15 @@
 # RFP RAG Streamlit frontend.
-# The only externally exposed service (GCP firewall: tcp:8501).
-# Server config (port 8501, address 0.0.0.0, 20MB upload) comes from
-# frontend/.streamlit/config.toml, hence WorkingDirectory=frontend/.
+# The only externally exposed service (GCP firewall: tcp:8502).
+# Port 8502 via flag override — config.toml 기본값 8501은 PM's experiment가 점유 중.
+# 나머지 서버 설정(address 0.0.0.0, 20MB upload)은 frontend/.streamlit/config.toml에서 옴
+# (그래서 WorkingDirectory가 frontend/).
 #
 # 설치 (경로·계정이 다르면 아래 User/WorkingDirectory/ExecStart 수정):
 #   sudo cp deploy/systemd/rfp-frontend.service /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now rfp-frontend
 
 [Unit]
-Description=RFP RAG Frontend (Streamlit, 0.0.0.0:8501)
+Description=RFP RAG Frontend (Streamlit, 0.0.0.0:8502)
 After=network.target rfp-api.service
 Wants=rfp-api.service
 
@@ -16,8 +17,8 @@ Wants=rfp-api.service
 Type=simple
 User=seen
 WorkingDirectory=/home/seen/intermediate-project/frontend
-Environment=RAG_API_BASE_URL=http://127.0.0.1:8080
-ExecStart=/home/seen/venvs/rfp/bin/streamlit run app.py
+Environment=RAG_API_BASE_URL=http://127.0.0.1:8081
+ExecStart=/home/seen/ai/bin/streamlit run app.py --server.port 8502
 Restart=on-failure
 RestartSec=3
 

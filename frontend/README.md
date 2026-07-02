@@ -35,8 +35,9 @@ streamlit run app.py
 
 ## GCP VM 배포 메모
 
-- 외부에는 **8501(Streamlit)만 개방**하고, FastAPI는 `127.0.0.1`(loopback)에 바인딩합니다
+- 외부에는 **Streamlit 포트만 개방**하고, FastAPI는 `127.0.0.1`(loopback)에 바인딩합니다
   (Streamlit이 서버 사이드에서 API를 호출하므로 CORS·API 포트 개방 불필요).
-- VM의 8000 포트는 JupyterHub가 사용 중이므로 API는 다른 포트(예: 8080)로 실행:
-  `uvicorn api.main:app --host 127.0.0.1 --port 8080`
-  + 프론트 환경변수 `RAG_API_BASE_URL=http://127.0.0.1:8080`
+- VM 포트 사정: 8000(JupyterHub)·8080·8501(다른 실험 프로세스)이 점유 중이라
+  **API 8081 / FE 8502**를 사용합니다. 상세는 `deploy/systemd/rfp-*.service` 참고:
+  `python -m uvicorn api.main:app --host 127.0.0.1 --port 8081`
+  + `RAG_API_BASE_URL=http://127.0.0.1:8081 streamlit run app.py --server.port 8502`
