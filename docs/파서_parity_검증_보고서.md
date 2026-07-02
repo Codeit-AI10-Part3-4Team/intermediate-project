@@ -1,7 +1,8 @@
+
 # 파서 parity 검증 보고서
 
 - **대상 브랜치**: `feature/parser-parity-check`
-- **작성일**: 2026-07-01
+- **작성일**: 2026-07-02
 - **범위**: `notebooks/parsing` → `src/rag_core/parsing` 이전(ipynb→py)이 파싱 결과를 바꾸지 않았음을 검증하는 작업
 
 ---
@@ -57,3 +58,49 @@ python -m pytest tests/test_parity_check_parsing.py -q
 # 실제 parity 비교 (golden/candidate JSON 디렉토리 필요)
 python scripts/parity_check_parsing.py --golden ./golden/docs --candidate ./new/docs [--verbose]
 ```
+
+---
+## 4. parity 검증 결과
+
+
+### 실행 환경
+
+- OS: Windows 11 (Local)
+- Python: 3.10.11
+- Virtual Environment: `venv`
+- 실행 위치: C:\Codes\Codeit_AI10_Part3_4Teamintermediate_project
+
+### 수행 방법
+
+총 **4회** parity 검증을 수행하였다.
+
+```powershell
+python .\scripts\parity_check_parsing.py `
+  --golden .\golden `
+  --candidate .\parity_out\docs `
+  --verbose
+```
+
+
+### 검증 결과
+
+총 3개의 문서(D001, D008, D026)에서 차이가 보고되었으며,
+모든 항목에 대해 JSON 원본을 직접 비교하여 원인을 확인하였다.
+
+| 문서   | 결과              | 확인 내용                                      |
+| ---- | --------------- | ------------------------------------------ |
+| D001 | parse_method 변경 | 출력 텍스트 및 블록 구조 동일                          |
+| D008 | parse_method 변경 | 출력 텍스트 및 블록 구조 동일                          |
+| D026 | dedup_hash 불일치  | JSON 직접 비교 결과 내용은 동일하며 공백 처리에 따른 형식적 차이 확인 |
+
+
+
+## 5. 결론
+
+parity 검증 과정에서 보고된 차이는 모두 직접 확인하였다.
+
+- D001, D008은 `parse_method` 변경만 확인되었으며 파싱 결과에는 영향이 없었다.
+- D026은 `dedup_hash` 불일치가 보고되었으나 JSON 직접 비교 결과 내용은 동일하였고 공백 처리에 따른 형식적 차이였다.
+
+따라서 notebook 기반 파서에서 `src/rag_core/parsing`으로 이전된
+py 파이프라인은 기능적으로 동일한 파싱 결과를 생성함을 확인하였다.

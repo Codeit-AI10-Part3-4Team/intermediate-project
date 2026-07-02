@@ -4,12 +4,16 @@ exaone3.5:7.8b 기반 RAG 파이프라인 핵심 함수 모음.
 쿼리 구성, 검색, 답변 생성, 후처리, 가드레일 함수를 포함합니다.
 """
 
+import os
 import re
 import time
 
-import requests  # type: ignore[import-untyped]
+import requests
 
-from rag_core.prompts.builder import TARGET_MODEL
+from rag_core.prompts.builder import TARGET_MODEL, build_prompt as _build_prompt_from_template
+
+# Ollama 엔드포인트 환경 변수로 주입 (기본값: http://127.0.0.1:11434)
+_OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 
 
 # ─────────────────────────────────────────────
@@ -26,7 +30,7 @@ def get_model_options(model: str) -> dict:
 
 
 def ask_ollama(model, prompt):
-    url = "http://127.0.0.1:11434/api/generate"
+    url = f"{_OLLAMA_BASE_URL}/api/generate"
     payload = {
         "model": model,
         "prompt": prompt,
@@ -53,18 +57,13 @@ def ask_ollama(model, prompt):
         }
     except Exception as e:
         elapsed = round(time.perf_counter() - start, 2)
-        return {
-            "model": model,
-            "answer": f"오류 발생: {e}",
-            "elapsed_sec": elapsed,
-            "attempt": 1,
-        }
+        return {"model": model, "answer": f"오류 발생: {e}", "elapsed_sec": elapsed, "attempt": 1}
 
 
 def unload_ollama_model(model_name: str):
     try:
         requests.post(
-            "http://127.0.0.1:11434/api/generate",
+            f"{_OLLAMA_BASE_URL}/api/generate",
             json={"model": model_name, "prompt": "", "keep_alive": 0},
             timeout=10,
         )
@@ -195,11 +194,7 @@ def retrieve_multi_query(queries: list, retriever, k_each: int = 3) -> list:
         docs = [_RetrievedDocAdapter(rc) for rc in retrieved]
         for doc in docs:
             meta = doc.metadata
-            key = (
-                meta.get("doc_id", ""),
-                meta.get("header_path", ""),
-                doc.page_content[:50],
-            )
+            key = (meta.get("doc_id", ""), meta.get("header_path", ""), doc.page_content[:50])
             if key not in seen:
                 all_docs.append(doc)
                 seen.add(key)
@@ -399,71 +394,42 @@ def build_doc_metadata_table(docs) -> str:
 
 
 def build_exaone_prompt_from_docs(question, docs, is_multi_doc=True) -> str:
-    """검색된 docs를 직접 context로 사용하여 프롬프트를 구성합니다."""
+    """검색된 docs를 직접 context로 사용하여 프롬프트를 구성합니다.
+    templates/ 폴더의 .txt 파일을 읽어서 프롬프트를 생성합니다.
+    """
     context = format_rag_context(docs)
     doc_list = build_doc_metadata_table(docs)
+    return _build_prompt_from_template(
+        question=question,
+        context=context,
+        doc_list=doc_list,
+        is_multi_doc=is_multi_doc,
+    )
 
-    if is_multi_doc:
-        prompt = f"""
-당신은 여러 공공 RFP 문서를 비교·종합하는 입찰 지원 AI입니다.
-반드시 아래 [검색 문서 목록]과 [문서 내용]에 포함된 정보만 근거로 질문에 답변하세요.
 
-[검색 문서 목록]
-{doc_list}
+def generate_followup(question: str, answer: str) -> str:
+    """답변 후 연관 질문 3개와 문체 변환 유도 문구를 생성합니다.
 
-[답변 규칙]
-1. 반드시 [검색 문서 목록]에 있는 doc_id, 발주기관, 사업명만 답변에 사용하세요.
-2. [검색 문서 목록]에 없는 기관명, 사업명, 지역명, 금액, 요구사항을 절대 새로 만들지 마세요.
-3. 검색된 문서에 없는 내용을 일반적인 사례처럼 보충하지 마세요.
-4. 다중문서 비교 또는 종합 질문인 경우, 문서별로 발주기관 / 사업명 / 사업금액 / 주요 내용을 구분해서 답변하세요.
-5. 질문이 "다른 사업", "유사 사업", "관련 사업"을 묻는 경우에도 반드시 [검색 문서 목록] 안에서만 후보를 제시하세요.
-6. 검색된 문서가 여러 개인 경우, 답변에는 검색된 문서 중 근거가 명확한 문서만 사용하세요.
-7. 특정 문서가 검색되었지만 답변 근거가 부족하면 "검색되었으나 관련 근거가 부족합니다."라고 표시하세요.
-8. 사업금액은 metadata 또는 문서에 있는 원 단위 숫자를 그대로 사용하세요.
-9. 억 원, 조 원, 만 원 등으로 임의 환산하지 마세요.
-10. 금액 차이를 계산할 때도 원 단위 숫자 기준으로 계산하세요.
-11. 답변은 반드시 한국어 존댓말로 작성하세요.
-12. 중국어, 일본어, 영어 등 한국어 외 언어를 섞어 쓰지 마세요.
+    템플릿 파일(prompt_template_followup_v1.txt)을 읽어서 프롬프트를 구성하고,
+    모델 호출 결과를 그대로 반환합니다. 실패 시 빈 문자열을 반환합니다.
+    """
+    try:
+        from pathlib import Path
 
-[출력 형식]
-1. 발주기관:
-   - 사업명:
-   - 사업금액:
-   - 확인된 주요 내용:
-
-[문서 내용]
-{context}
-
-[질문]
-{question}
-
-[답변]
-"""
-    else:
-        prompt = f"""
-당신은 공공 RFP 문서를 분석하는 입찰 지원 AI입니다.
-반드시 아래 [검색 문서 목록]과 [문서 내용]에 포함된 정보만 근거로 질문에 답변하세요.
-
-[검색 문서 목록]
-{doc_list}
-
-[답변 규칙]
-1. 문서에 없는 내용은 절대 추측하지 마세요.
-2. [검색 문서 목록]에 없는 기관명, 사업명, 금액, 요구사항을 새로 만들지 마세요.
-3. 확인되지 않는 내용은 "확인 가능한 근거가 부족합니다."라고 답변하세요.
-4. 사업금액은 metadata 또는 문서에 있는 원 단위 숫자를 그대로 사용하세요.
-5. 억 원, 조 원, 만 원 등으로 임의 환산하지 마세요.
-6. 답변은 반드시 한국어 존댓말로 작성하세요.
-
-[문서 내용]
-{context}
-
-[질문]
-{question}
-
-[답변]
-"""
-    return prompt
+        template_path = (
+            Path(__file__).parent.parent
+            / "prompts"
+            / "templates"
+            / "prompt_template_followup_v1.txt"
+        )
+        with open(template_path, encoding="utf-8") as f:
+            template = f.read()
+        prompt = template.format(question=question, answer=answer)
+        result = ask_ollama(TARGET_MODEL, prompt)
+        return result.get("answer", "") or ""
+    except Exception as e:
+        print(f"[generate_followup 오류] {e}")
+        return ""
 
 
 def ask_exaone_from_docs(question, docs, is_multi_doc=True, max_retries=2) -> dict:
@@ -487,6 +453,8 @@ def ask_exaone_from_docs(question, docs, is_multi_doc=True, max_retries=2) -> di
     amount_check = validate_amounts_against_metadata(post_answer, docs)
     combined_flags = post["flags"] + amount_check["flags"]
 
+    followup = generate_followup(question, post_answer)
+
     return {
         "model_answer": post_answer,
         "elapsed_sec": elapsed,
@@ -494,6 +462,8 @@ def ask_exaone_from_docs(question, docs, is_multi_doc=True, max_retries=2) -> di
         "post_flags": combined_flags,
         "amount_mismatches": amount_check["mismatches"],
         "guardrail_applied": None,
+        "related_questions": followup,
+        "style_prompt": "💡 이 내용을 다른 문체로 변환해 드릴 수 있어요. 원하시는 형식을 선택해 주세요: [공문서체] [사업제안서체] [보고서체]",
     }
 
 
@@ -532,12 +502,7 @@ def postprocess_exaone(text: str) -> dict:
     if any(re.search(p, result["processed"]) for p in money_patterns):
         result["flags"].append("money_conversion_risk")
 
-    for pat in [
-        r"\[문서 근거 부족\]",
-        r"\[검색결과\s*\d+\]",
-        r"판단\s*:\s*",
-        r"출력\s*:\s*",
-    ]:
+    for pat in [r"\[문서 근거 부족\]", r"\[검색결과\s*\d+\]", r"판단\s*:\s*", r"출력\s*:\s*"]:
         result["processed"] = re.sub(pat, "", result["processed"]).strip()
 
     if not result["processed"].strip():
