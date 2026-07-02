@@ -31,12 +31,14 @@ class LangGraphOrchestrator:
         self,
         chroma_dir: Optional[str] = None,
     ):
-        chroma_dir = chroma_dir or os.getenv("CHROMA_DIR", "/data/vector_db/vector_db_v4")
+        resolved_chroma_dir: str = chroma_dir or os.getenv(
+            "CHROMA_DIR", "/data/vector_db/vector_db_v4"
+        )
 
         # LangGraph 앱 초기화 (Retriever + Ollama 포함)
         from rag_core.orchestration.langgraph_router import build_graph
 
-        self._app = build_graph(chroma_dir=chroma_dir)
+        self._app = build_graph(chroma_dir=resolved_chroma_dir)
 
     def run(
         self,

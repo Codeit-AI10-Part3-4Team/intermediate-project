@@ -27,11 +27,11 @@ from __future__ import annotations
 import collections
 import os
 import sys
-from typing import Literal, Optional, TypedDict
+from typing import Any, Literal, Optional, TypedDict
 
-import requests
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph import END, StateGraph
+import requests  # type: ignore[import-untyped]
+from langgraph.checkpoint.memory import MemorySaver  # type: ignore[import-not-found]
+from langgraph.graph import END, StateGraph  # type: ignore[import-not-found]
 
 sys.path.insert(0, "src")
 from rag_core.retrieval.retriever import Retriever
@@ -40,7 +40,7 @@ from rag_core.llm.pipeline import (
     is_score_prediction_question,
     score_prediction_guardrail_answer,
 )
-from rag_core.prompts.prompt import exaone_rag_qa_prompt, exaone_multi_doc_prompt
+from rag_core.prompts.prompt import exaone_rag_qa_prompt, exaone_multi_doc_prompt  # type: ignore[import-untyped]
 
 
 # ──────────────────────────────────────────────
@@ -210,9 +210,9 @@ def build_prompt(question: str, chunks: list[str], question_type: str) -> str:
     context = "\n\n".join(chunks) if chunks else "검색된 문서가 없습니다."
 
     if question_type in ("multi_doc_compare", "multi_doc_summary"):
-        template = exaone_multi_doc_prompt
+        template: str = str(exaone_multi_doc_prompt)
     else:
-        template = exaone_rag_qa_prompt
+        template = str(exaone_rag_qa_prompt)
 
     return template.format(context=context, question=question)
 
@@ -317,8 +317,8 @@ def multi_doc_compare_node(state: RagState) -> dict:
             all_retrieved_results.append(retrieved)
 
         rrf_k = 60
-        rrf_scores = collections.defaultdict(float)
-        doc_map = {}
+        rrf_scores: collections.defaultdict[str, float] = collections.defaultdict(float)
+        doc_map: dict[str, Any] = {}
 
         for retrieved_list in all_retrieved_results:
             for rank, r in enumerate(retrieved_list, start=1):
@@ -451,11 +451,11 @@ def bid_analysis_node(state: RagState) -> dict:
 
         import re as _re
 
-        def _extract_line(key, text, default="확인필요"):
+        def _extract_line(key: str, text: str, default: str = "확인필요") -> str:
             m = _re.search(rf"{key}:\s*(.+)", text)
             return m.group(1).strip() if m else default
 
-        def _parse_item(key, text, name):
+        def _parse_item(key: str, text: str, name: str) -> dict[str, Any]:
             m = _re.search(rf"{key}:\s*(\d+)\s*\|\s*([^|\n]+)\s*\|\s*(.+)", text)
             if m:
                 score = int(m.group(1))
@@ -672,7 +672,7 @@ def generation_node(state: RagState) -> dict:
     class _SimpleDoc:
         def __init__(self, text: str):
             self.page_content = text
-            self.metadata = {}
+            self.metadata: dict[str, Any] = {}
 
     docs = [_SimpleDoc(c) for c in chunks]
 
@@ -787,7 +787,7 @@ if __name__ == "__main__":
         print("=" * 60)
         print("키워드 기반 1차 분류 테스트 (Retriever/LLM 없이)")
         print("=" * 60)
-        test_cases = [
+        test_cases: list[tuple[str, bool, str]] = [
             ("이 사업의 예산은 얼마인가요?", False, "single_doc_fact"),
             ("이 사업의 보안 요구사항은 무엇인가요?", False, "single_doc_requirement"),
             ("고려대학교와 광주과학기술원 사업을 비교해주세요", False, "multi_doc_compare"),
