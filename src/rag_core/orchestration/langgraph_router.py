@@ -29,7 +29,7 @@ import os
 import sys
 from typing import Any, Literal, Optional, TypedDict
 
-import requests  # type: ignore[import-untyped]
+import requests
 from langgraph.checkpoint.memory import MemorySaver  # type: ignore[import-not-found]
 from langgraph.graph import END, StateGraph  # type: ignore[import-not-found]
 
@@ -578,7 +578,8 @@ def rewrite_node(state: RagState) -> dict:
     지우님 프롬프트 템플릿 수령 후 교체 예정.
     """
     question = state.get("question", "")
-    history = state.get("history", [])
+    raw_history = state.get("history", [])
+    history: list[dict[str, Any]] = list(raw_history) if raw_history else []
 
     # 변환할 대상 — history 마지막 답변
     if not history:
@@ -586,7 +587,8 @@ def rewrite_node(state: RagState) -> dict:
             "answer": "변환할 이전 답변이 없습니다. 먼저 RFP에 대해 질문해주세요.",
         }
 
-    last_answer = history[-1].get("answer", "")
+    last_turn: dict[str, Any] = history[-1]
+    last_answer: str = str(last_turn.get("answer", ""))
     if not last_answer:
         return {
             "answer": "변환할 이전 답변이 없습니다.",
@@ -809,12 +811,12 @@ if __name__ == "__main__":
         print("=" * 60)
         app = build_graph(chroma_dir=args.chroma_dir)
 
-        test_cases = [
+        pipeline_test_cases: list[tuple[str, str]] = [
             ("오늘 날씨 어때?", "guardrail 테스트"),
             ("이 사업의 예산은 얼마인가요?", "단일문서 사실추출 테스트"),
         ]
 
-        for question, desc in test_cases:
+        for question, desc in pipeline_test_cases:
             print(f"\n[{desc}]")
             print(f"질문: {question}")
             result = app.invoke(

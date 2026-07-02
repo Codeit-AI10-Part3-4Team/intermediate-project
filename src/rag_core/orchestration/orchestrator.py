@@ -31,8 +31,10 @@ class LangGraphOrchestrator:
         self,
         chroma_dir: Optional[str] = None,
     ):
-        resolved_chroma_dir: str = chroma_dir or os.getenv(
-            "CHROMA_DIR", "/data/vector_db/vector_db_v4"
+        resolved_chroma_dir: str = (
+            chroma_dir
+            if chroma_dir is not None
+            else (os.getenv("CHROMA_DIR") or "/data/vector_db/vector_db_v4")
         )
 
         # LangGraph 앱 초기화 (Retriever + Ollama 포함)
