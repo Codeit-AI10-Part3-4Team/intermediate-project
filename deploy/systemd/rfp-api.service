@@ -1,0 +1,23 @@
+# RFP RAG FastAPI backend.
+# Binds to loopback only — external access goes through the Streamlit frontend (8501).
+# Port 8080 (NOT 8000: JupyterHub occupies 8000 on this VM).
+#
+# 설치 (경로·계정이 다르면 아래 User/WorkingDirectory/ExecStart 수정):
+#   sudo cp deploy/systemd/rfp-api.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now rfp-api
+
+[Unit]
+Description=RFP RAG API (FastAPI/uvicorn, loopback:8080)
+After=network.target
+
+[Service]
+Type=simple
+User=seen
+WorkingDirectory=/home/seen/intermediate-project
+# venv: python3 -m venv --system-site-packages ~/venvs/rfp && pip install -e ".[frontend]"
+ExecStart=/home/seen/venvs/rfp/bin/uvicorn api.main:app --host 127.0.0.1 --port 8080
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
