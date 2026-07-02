@@ -24,7 +24,6 @@ import argparse
 import hashlib
 import io
 import json
-import os
 import re
 import subprocess
 import sys
@@ -33,9 +32,10 @@ import unicodedata
 from datetime import date
 from difflib import SequenceMatcher
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
-from lxml import etree
+import lxml.etree as etree
 
 # ─────────────────────────────────────────────────────────────
 # pyhwp BSTR 서로게이트 패치
@@ -61,6 +61,7 @@ except ImportError:
 PDFPLUMBER_AVAILABLE = False
 try:
     import pdfplumber
+
     PDFPLUMBER_AVAILABLE = True
 except ImportError:
     print("[경고] pdfplumber 미설치 — PDF 파싱 불가. pip install pdfplumber")
@@ -85,8 +86,13 @@ SKIP_CONTROL_TAGS = {"TableControl", "GShapeObjectControl", "EqEdit", "ShapeComp
 NUMERIC_PATTERN = re.compile(r"^[\d,\.\-/%원₩()]+$")
 
 TYPE_KW = [
-    ("재구축", "재구축"), ("고도화", "고도화"), ("개선", "개선"),
-    ("개발", "개발"), ("운영", "운영"), ("통합", "통합"), ("구축", "구축"),
+    ("재구축", "재구축"),
+    ("고도화", "고도화"),
+    ("개선", "개선"),
+    ("개발", "개발"),
+    ("운영", "운영"),
+    ("통합", "통합"),
+    ("구축", "구축"),
 ]
 
 TOC_PATTERN = re.compile(
@@ -125,6 +131,7 @@ def extract_toc(text: str) -> list:
 # 2. 표 유틸리티
 # ══════════════════════════════════════════════════════════════
 
+
 def cell_text(cell) -> str:
     return " ".join("".join(cell.itertext()).split())
 
@@ -134,8 +141,8 @@ def reconstruct_grid(table_el) -> list:
     cols = int(table_el.get("cols", 1))
     grid = [["" for _ in range(cols)] for _ in range(rows)]
     for cell in table_el.findall(".//TableCell"):
-        r  = int(cell.get("row", 0))
-        c  = int(cell.get("col", 0))
+        r = int(cell.get("row", 0))
+        c = int(cell.get("col", 0))
         rs = int(cell.get("rowspan", 1))
         cs = int(cell.get("colspan", 1))
         txt = cell_text(cell)
@@ -169,10 +176,7 @@ def grid_to_markdown(grid: list) -> str:
 
 
 def grid_to_kv(grid: list) -> str:
-    return " ".join(
-        f"{r[0]}: {r[1]}."
-        for r in grid if len(r) >= 2 and r[0]
-    )
+    return " ".join(f"{r[0]}: {r[1]}." for r in grid if len(r) >= 2 and r[0])
 
 
 def serialize_table(grid: list) -> tuple:
@@ -210,7 +214,7 @@ def _numeric_cell_ratio(grid: list) -> float:
     return sum(1 for c in cells if NUMERIC_PATTERN.match(c)) / len(cells)
 
 
-def classify_decorative(grid: list, prev_block: dict) -> tuple:
+def classify_decorative(grid: list, prev_block: dict | None) -> tuple:
     n_rows = len(grid)
     n_cols = len(grid[0]) if grid else 0
     if n_rows == 1 and n_cols == 1:
@@ -221,7 +225,7 @@ def classify_decorative(grid: list, prev_block: dict) -> tuple:
         sim = _text_similarity(plain, _norm(prev_block["content"]))
         if sim >= 0.97:
             return True, f"text_overlap={sim:.2f}"
-    rep  = _internal_repetition_ratio(grid)
+    rep = _internal_repetition_ratio(grid)
     numr = _numeric_cell_ratio(grid)
     if rep >= 0.5 and numr < 0.1:
         return True, f"internal_repetition={rep:.2f}"
@@ -248,14 +252,14 @@ def clean_tables_in_doc(sections: list) -> int:
             if block.get("type") != "table":
                 continue
             before = block.get("raw_grid", [])
-            after  = dedup_merged_cells(before)
+            after = dedup_merged_cells(before)
             if after != before:
                 block["raw_grid"] = after
-                block["content"]  = grid_to_markdown(after)
+                block["content"] = grid_to_markdown(after)
                 changed += 1
             flat = [c for row in block["raw_grid"] for c in row]
             if len(block["raw_grid"]) <= 1 and len(flat) <= 1 and not block.get("is_decorative"):
-                block["is_decorative"]    = True
+                block["is_decorative"] = True
                 block["decorative_reason"] = "dedup_collapsed_to_single_cell"
     return changed
 
@@ -264,7 +268,7 @@ def flag_large_sections(sections: list, threshold: int = 30) -> int:
     flagged = 0
     for section in sections:
         bc = len(section["blocks"])
-        section["block_count"]   = bc
+        section["block_count"] = bc
         section["needs_subsplit"] = bc > threshold
         if section["needs_subsplit"]:
             flagged += 1
@@ -274,6 +278,7 @@ def flag_large_sections(sections: list, threshold: int = 30) -> int:
 # ══════════════════════════════════════════════════════════════
 # 3. 섹션 빌드 공통 로직
 # ══════════════════════════════════════════════════════════════
+
 
 def _flush_section(sections, sec_counter, headers, level, blocks):
     if not blocks:
@@ -285,22 +290,24 @@ def _flush_section(sections, sec_counter, headers, level, blocks):
         blk = dict(blk)
         blk["block_id"] = f"{sec_id}-B{i:02d}"
         renumbered.append(blk)
-    sections.append({
-        "section_id":       sec_id,
-        "header_path":      list(headers),
-        "level":            level,
-        "blocks":           renumbered,
-        "toc_ref":          None,
-        "toc_match_failed": True,
-    })
+    sections.append(
+        {
+            "section_id": sec_id,
+            "header_path": list(headers),
+            "level": level,
+            "blocks": renumbered,
+            "toc_ref": None,
+            "toc_match_failed": True,
+        }
+    )
     return sec_counter
 
 
 def _body_items_to_sections(body_items: list, warnings: list) -> tuple:
-    sections = []
-    headers  = ["(서두)"]
-    level    = 0
-    blocks   = []
+    sections: list[dict[str, Any]] = []
+    headers = ["(서두)"]
+    level = 0
+    blocks: list[dict[str, Any]] = []
     sec_counter = blk_counter = text_count = table_count = 0
     wide_count = kv_count = decorative_count = 0
 
@@ -310,67 +317,79 @@ def _body_items_to_sections(body_items: list, warnings: list) -> tuple:
             if lv > 0:
                 sec_counter = _flush_section(sections, sec_counter, headers, level, blocks)
                 blocks = []
-                if lv == 1:   headers = [ival.strip()]
-                elif lv == 2: headers = headers[:1] + [ival.strip()]
-                else:         headers = headers[:2] + [ival.strip()]
+                if lv == 1:
+                    headers = [ival.strip()]
+                elif lv == 2:
+                    headers = headers[:1] + [ival.strip()]
+                else:
+                    headers = headers[:2] + [ival.strip()]
                 level = lv
             else:
                 blk_counter += 1
-                text_count  += 1
-                blocks.append({
-                    "block_id": f"B{blk_counter:04d}",
-                    "type":     "text",
-                    "content":  ival,
-                })
+                text_count += 1
+                blocks.append(
+                    {
+                        "block_id": f"B{blk_counter:04d}",
+                        "type": "text",
+                        "content": ival,
+                    }
+                )
         else:
             grid = reconstruct_grid(ival)
             if not grid or not any(any(c for c in r) for r in grid):
-                warnings.append(f"빈 표 감지 (blk#{blk_counter+1})")
+                warnings.append(f"빈 표 감지 (blk#{blk_counter + 1})")
                 continue
             t_type, content, note = serialize_table(grid)
             if not content.strip():
-                warnings.append(f"표 직렬화 빈 결과 (blk#{blk_counter+1})")
+                warnings.append(f"표 직렬화 빈 결과 (blk#{blk_counter + 1})")
                 continue
             blk_counter += 1
             table_count += 1
-            wide_count  += 1 if t_type == "wide" else 0
-            kv_count    += 1 if t_type == "key_value" else 0
-            prev_block   = blocks[-1] if blocks else None
+            wide_count += 1 if t_type == "wide" else 0
+            kv_count += 1 if t_type == "key_value" else 0
+            prev_block = blocks[-1] if blocks else None
             is_dec, dec_reason = classify_decorative(grid, prev_block)
             if is_dec:
                 decorative_count += 1
-            blocks.append({
-                "block_id":          f"B{blk_counter:04d}",
-                "type":              "table",
-                "table_type":        t_type,
-                "content":           content,
-                "note":              note,
-                "raw_grid":          grid,
-                "is_decorative":     is_dec,
-                "decorative_reason": dec_reason,
-            })
+            blocks.append(
+                {
+                    "block_id": f"B{blk_counter:04d}",
+                    "type": "table",
+                    "table_type": t_type,
+                    "content": content,
+                    "note": note,
+                    "raw_grid": grid,
+                    "is_decorative": is_dec,
+                    "decorative_reason": dec_reason,
+                }
+            )
 
     _flush_section(sections, sec_counter, headers, level, blocks)
 
     qa = {
-        "total_sections":         len(sections),
-        "total_blocks":           blk_counter,
-        "text_blocks":            text_count,
-        "table_blocks":           table_count,
-        "table_wide_count":       wide_count,
-        "table_key_value_count":  kv_count,
+        "total_sections": len(sections),
+        "total_blocks": blk_counter,
+        "text_blocks": text_count,
+        "table_blocks": table_count,
+        "table_wide_count": wide_count,
+        "table_key_value_count": kv_count,
         "decorative_table_count": decorative_count,
         "decorative_table_ratio": round(decorative_count / table_count, 3) if table_count else 0.0,
-        "extraction_warnings":    warnings,
+        "extraction_warnings": warnings,
     }
     return sections, qa
 
 
 def _empty_qa(warning_msg: str) -> dict:
     return {
-        "total_sections": 0, "total_blocks": 0, "text_blocks": 0,
-        "table_blocks": 0, "table_wide_count": 0, "table_key_value_count": 0,
-        "decorative_table_count": 0, "decorative_table_ratio": 0.0,
+        "total_sections": 0,
+        "total_blocks": 0,
+        "text_blocks": 0,
+        "table_blocks": 0,
+        "table_wide_count": 0,
+        "table_key_value_count": 0,
+        "decorative_table_count": 0,
+        "decorative_table_ratio": 0.0,
         "extraction_warnings": [warning_msg],
     }
 
@@ -379,8 +398,10 @@ def _empty_qa(warning_msg: str) -> dict:
 # 4. HWP 파싱
 # ══════════════════════════════════════════════════════════════
 
+
 def paragraph_own_text(para_el) -> str:
     texts = []
+
     def walk(el):
         for child in el:
             if child.tag in SKIP_CONTROL_TAGS:
@@ -388,6 +409,7 @@ def paragraph_own_text(para_el) -> str:
             if child.tag == "Text" and child.text:
                 texts.append(child.text)
             walk(child)
+
     walk(para_el)
     return " ".join("".join(texts).split())
 
@@ -403,7 +425,7 @@ def _xml_to_sections(xml_bytes: bytes) -> tuple:
         except Exception as e2:
             return None, f"XML 파싱 실패: {e2}"
 
-    body_items = []
+    body_items: list[tuple[str, Any]] = []
     for el in root.iter():
         if el.tag == "TableBody":
             body_items.append(("table", el))
@@ -426,6 +448,7 @@ def parse_hwp_inprocess(hwp_path: Path) -> tuple:
         return None, "pyhwp 미설치"
     try:
         from hwp5.xmlmodel import Hwp5File
+
         buf = io.BytesIO()
         hwp = Hwp5File(str(hwp_path))
         hwp.bodytext.xmlevents().dump(buf)
@@ -449,16 +472,20 @@ def parse_hwp_txt(hwp_path: Path) -> tuple:
     try:
         result = subprocess.run(
             ["hwp5proc", "txt", str(hwp_path)],
-            capture_output=True, timeout=120,
+            capture_output=True,
+            timeout=120,
         )
         if result.returncode != 0:
-            return None, f"hwp5proc txt 오류: {result.stderr.decode('utf-8', errors='replace')[:300]}"
+            return (
+                None,
+                f"hwp5proc txt 오류: {result.stderr.decode('utf-8', errors='replace')[:300]}",
+            )
         raw_text = result.stdout.decode("utf-8", errors="replace")
         if not raw_text.strip():
             return None, "hwp5proc txt 결과 없음"
 
         body_items = [("text", line.strip()) for line in raw_text.split("\n") if line.strip()]
-        warnings   = ["hwp5txt 경로 사용 — 표 구조 미복원"]
+        warnings = ["hwp5txt 경로 사용 — 표 구조 미복원"]
         sections, qa = _body_items_to_sections(body_items, warnings)
         qa["parse_method"] = "A2_hwp5txt"
         return (sections, qa), None
@@ -469,7 +496,7 @@ def parse_hwp_txt(hwp_path: Path) -> tuple:
         return None, f"hwp5proc txt 예외: {e}"
 
 
-def _find_soffice() -> str:
+def _find_soffice() -> str | None:
     """윈도우/맥/리눅스에서 soffice 실행 경로 탐색"""
     candidates = [
         "soffice",  # PATH에 등록된 경우
@@ -508,9 +535,9 @@ def parse_hwp_libreoffice(hwp_path: Path) -> tuple:
     try:
         with tempfile.TemporaryDirectory() as tmp_dir:
             r = subprocess.run(
-                [soffice, "--headless", "--convert-to", "docx",
-                 "--outdir", tmp_dir, str(hwp_path)],
-                capture_output=True, timeout=180,
+                [soffice, "--headless", "--convert-to", "docx", "--outdir", tmp_dir, str(hwp_path)],
+                capture_output=True,
+                timeout=180,
             )
             if r.returncode != 0:
                 return None, f"soffice 변환 실패: {r.stderr.decode(errors='replace')[:300]}"
@@ -518,11 +545,11 @@ def parse_hwp_libreoffice(hwp_path: Path) -> tuple:
             if not docx_path.exists():
                 return None, f"변환 결과 파일 없음: {docx_path}"
 
-            doc      = Document(str(docx_path))
-            sections = []
-            headers  = ["(서두)"]
-            level    = 0
-            blocks   = []
+            doc = Document(str(docx_path))
+            sections: list[dict[str, Any]] = []
+            headers = ["(서두)"]
+            level = 0
+            blocks: list[dict[str, Any]] = []
             sec_counter = blk_counter = text_count = table_count = 0
             wide_count = kv_count = decorative_count = 0
             warnings = ["LibreOffice 변환 경로 사용 — 표 병합 셀 근사 복원"]
@@ -532,7 +559,8 @@ def parse_hwp_libreoffice(hwp_path: Path) -> tuple:
 
                 if tag == "p":
                     txt = "".join(
-                        node.text for node in element.iter()
+                        node.text
+                        for node in element.iter()
                         if node.tag.endswith("}t") and node.text
                     ).strip()
                     if not txt:
@@ -541,25 +569,30 @@ def parse_hwp_libreoffice(hwp_path: Path) -> tuple:
                     if lv > 0:
                         sec_counter = _flush_section(sections, sec_counter, headers, level, blocks)
                         blocks = []
-                        if lv == 1:   headers = [txt.strip()]
-                        elif lv == 2: headers = headers[:1] + [txt.strip()]
-                        else:         headers = headers[:2] + [txt.strip()]
+                        if lv == 1:
+                            headers = [txt.strip()]
+                        elif lv == 2:
+                            headers = headers[:1] + [txt.strip()]
+                        else:
+                            headers = headers[:2] + [txt.strip()]
                         level = lv
                     else:
                         blk_counter += 1
-                        text_count  += 1
-                        blocks.append({
-                            "block_id": f"B{blk_counter:04d}",
-                            "type": "text", "content": txt,
-                        })
+                        text_count += 1
+                        blocks.append(
+                            {
+                                "block_id": f"B{blk_counter:04d}",
+                                "type": "text",
+                                "content": txt,
+                            }
+                        )
 
                 elif tag == "tbl":
                     rows_data = []
                     for tr in element.findall(".//" + qn("w:tr")):
                         row = [
                             "".join(
-                                n.text for n in tc.iter()
-                                if n.tag.endswith("}t") and n.text
+                                n.text for n in tc.iter() if n.tag.endswith("}t") and n.text
                             ).strip()
                             for tc in tr.findall(".//" + qn("w:tc"))
                         ]
@@ -568,7 +601,7 @@ def parse_hwp_libreoffice(hwp_path: Path) -> tuple:
                     if not rows_data:
                         continue
                     max_cols = max(len(r) for r in rows_data)
-                    grid     = [r + [""] * (max_cols - len(r)) for r in rows_data]
+                    grid = [r + [""] * (max_cols - len(r)) for r in rows_data]
                     if not any(any(c for c in r) for r in grid):
                         continue
                     t_type, content, note = serialize_table(grid)
@@ -576,32 +609,40 @@ def parse_hwp_libreoffice(hwp_path: Path) -> tuple:
                         continue
                     blk_counter += 1
                     table_count += 1
-                    wide_count  += 1 if t_type == "wide" else 0
-                    kv_count    += 1 if t_type == "key_value" else 0
-                    prev_block   = blocks[-1] if blocks else None
+                    wide_count += 1 if t_type == "wide" else 0
+                    kv_count += 1 if t_type == "key_value" else 0
+                    prev_block = blocks[-1] if blocks else None
                     is_dec, dec_reason = classify_decorative(grid, prev_block)
                     if is_dec:
                         decorative_count += 1
-                    blocks.append({
-                        "block_id": f"B{blk_counter:04d}", "type": "table",
-                        "table_type": t_type, "content": content, "note": note,
-                        "raw_grid": grid, "is_decorative": is_dec,
-                        "decorative_reason": dec_reason,
-                    })
+                    blocks.append(
+                        {
+                            "block_id": f"B{blk_counter:04d}",
+                            "type": "table",
+                            "table_type": t_type,
+                            "content": content,
+                            "note": note,
+                            "raw_grid": grid,
+                            "is_decorative": is_dec,
+                            "decorative_reason": dec_reason,
+                        }
+                    )
 
             _flush_section(sections, sec_counter, headers, level, blocks)
 
             qa = {
-                "total_sections":         len(sections),
-                "total_blocks":           blk_counter,
-                "text_blocks":            text_count,
-                "table_blocks":           table_count,
-                "table_wide_count":       wide_count,
-                "table_key_value_count":  kv_count,
+                "total_sections": len(sections),
+                "total_blocks": blk_counter,
+                "text_blocks": text_count,
+                "table_blocks": table_count,
+                "table_wide_count": wide_count,
+                "table_key_value_count": kv_count,
                 "decorative_table_count": decorative_count,
-                "decorative_table_ratio": round(decorative_count / table_count, 3) if table_count else 0.0,
-                "extraction_warnings":    warnings,
-                "parse_method":           "B_libreoffice_docx",
+                "decorative_table_ratio": round(decorative_count / table_count, 3)
+                if table_count
+                else 0.0,
+                "extraction_warnings": warnings,
+                "parse_method": "B_libreoffice_docx",
             }
             return (sections, qa), None
 
@@ -615,20 +656,20 @@ def parse_hwp(hwp_path: Path) -> tuple:
     """HWP 통합 진입점: A-1 → A-2 → B 순서로 시도"""
     result, err1 = parse_hwp_inprocess(hwp_path)
     if result is not None:
-        print(f"    → A-1 (Hwp5File API) 성공")
+        print("    → A-1 (Hwp5File API) 성공")
         return result
 
     print(f"    → A-1 실패: {err1}")
     result, err2 = parse_hwp_txt(hwp_path)
     if result is not None:
-        print(f"    → A-2 (hwp5txt) 성공")
+        print("    → A-2 (hwp5txt) 성공")
         return result
 
     print(f"    → A-2 실패: {err2}")
-    print(f"    → B (LibreOffice) 시도...")
+    print("    → B (LibreOffice) 시도...")
     result, err3 = parse_hwp_libreoffice(hwp_path)
     if result is not None:
-        print(f"    → B (LibreOffice) 성공")
+        print("    → B (LibreOffice) 성공")
         return result
 
     print(f"    → B 실패: {err3}")
@@ -638,6 +679,7 @@ def parse_hwp(hwp_path: Path) -> tuple:
 # ══════════════════════════════════════════════════════════════
 # 5. PDF 파싱
 # ══════════════════════════════════════════════════════════════
+
 
 def pdf_clean_grid(raw_table: list) -> list:
     cleaned, prev_first = [], ""
@@ -659,10 +701,10 @@ def parse_pdf(pdf_path: Path) -> tuple:
     if not PDFPLUMBER_AVAILABLE:
         return [], _empty_qa("pdfplumber 미설치 — pip install pdfplumber")
 
-    sections = []
-    headers  = ["(서두)"]
-    level    = 0
-    blocks   = []
+    sections: list[dict[str, Any]] = []
+    headers = ["(서두)"]
+    level = 0
+    blocks: list[dict[str, Any]] = []
     sec_counter = blk_counter = text_count = table_count = 0
     wide_count = kv_count = decorative_count = 0
     warnings = []
@@ -679,12 +721,16 @@ def parse_pdf(pdf_path: Path) -> tuple:
                 if table_bboxes:
                     filtered = page
                     for bbox in table_bboxes:
-                        filtered = filtered.filter(
-                            lambda obj, b=bbox: not (
-                                obj.get("x0", 0) >= b[0] and obj.get("x1", 0) <= b[2] and
-                                obj.get("top", 0) >= b[1] and obj.get("bottom", 0) <= b[3]
+
+                        def _outside_table(obj: Any, b: Any = bbox) -> bool:
+                            return not (
+                                obj.get("x0", 0) >= b[0]
+                                and obj.get("x1", 0) <= b[2]
+                                and obj.get("top", 0) >= b[1]
+                                and obj.get("bottom", 0) <= b[3]
                             )
-                        )
+
+                        filtered = filtered.filter(_outside_table)
                     raw_text = filtered.extract_text() or ""
                 else:
                     raw_text = page.extract_text() or ""
@@ -697,17 +743,23 @@ def parse_pdf(pdf_path: Path) -> tuple:
                     if lv > 0:
                         sec_counter = _flush_section(sections, sec_counter, headers, level, blocks)
                         blocks = []
-                        if lv == 1:   headers = [line]
-                        elif lv == 2: headers = headers[:1] + [line]
-                        else:         headers = headers[:2] + [line]
+                        if lv == 1:
+                            headers = [line]
+                        elif lv == 2:
+                            headers = headers[:1] + [line]
+                        else:
+                            headers = headers[:2] + [line]
                         level = lv
                     else:
                         blk_counter += 1
-                        text_count  += 1
-                        blocks.append({
-                            "block_id": f"B{blk_counter:04d}",
-                            "type": "text", "content": line,
-                        })
+                        text_count += 1
+                        blocks.append(
+                            {
+                                "block_id": f"B{blk_counter:04d}",
+                                "type": "text",
+                                "content": line,
+                            }
+                        )
 
                 for raw_table in page_tables:
                     grid = pdf_clean_grid(raw_table)
@@ -718,18 +770,24 @@ def parse_pdf(pdf_path: Path) -> tuple:
                         continue
                     blk_counter += 1
                     table_count += 1
-                    wide_count  += 1 if t_type == "wide" else 0
-                    kv_count    += 1 if t_type == "key_value" else 0
-                    prev_block   = blocks[-1] if blocks else None
+                    wide_count += 1 if t_type == "wide" else 0
+                    kv_count += 1 if t_type == "key_value" else 0
+                    prev_block = blocks[-1] if blocks else None
                     is_dec, dec_reason = classify_decorative(grid, prev_block)
                     if is_dec:
                         decorative_count += 1
-                    blocks.append({
-                        "block_id": f"B{blk_counter:04d}", "type": "table",
-                        "table_type": t_type, "content": content, "note": note,
-                        "raw_grid": grid, "is_decorative": is_dec,
-                        "decorative_reason": dec_reason,
-                    })
+                    blocks.append(
+                        {
+                            "block_id": f"B{blk_counter:04d}",
+                            "type": "table",
+                            "table_type": t_type,
+                            "content": content,
+                            "note": note,
+                            "raw_grid": grid,
+                            "is_decorative": is_dec,
+                            "decorative_reason": dec_reason,
+                        }
+                    )
 
     except Exception as e:
         warnings.append(f"PDF 파싱 오류: {e}")
@@ -737,22 +795,23 @@ def parse_pdf(pdf_path: Path) -> tuple:
     _flush_section(sections, sec_counter, headers, level, blocks)
 
     return sections, {
-        "total_sections":         len(sections),
-        "total_blocks":           blk_counter,
-        "text_blocks":            text_count,
-        "table_blocks":           table_count,
-        "table_wide_count":       wide_count,
-        "table_key_value_count":  kv_count,
+        "total_sections": len(sections),
+        "total_blocks": blk_counter,
+        "text_blocks": text_count,
+        "table_blocks": table_count,
+        "table_wide_count": wide_count,
+        "table_key_value_count": kv_count,
         "decorative_table_count": decorative_count,
         "decorative_table_ratio": round(decorative_count / table_count, 3) if table_count else 0.0,
-        "extraction_warnings":    warnings,
-        "parse_method":           "pdfplumber",
+        "extraction_warnings": warnings,
+        "parse_method": "pdfplumber",
     }
 
 
 # ══════════════════════════════════════════════════════════════
 # 6. JSON 빌드
 # ══════════════════════════════════════════════════════════════
+
 
 def compute_toc_match_rate(toc: list, sections: list) -> float:
     if not toc:
@@ -765,38 +824,38 @@ def compute_toc_match_rate(toc: list, sections: list) -> float:
 def build_json(row: pd.Series, sections: list, qa_info: dict, toc: list) -> dict:
     all_text = " ".join(b["content"] for s in sections for b in s["blocks"])
     qa_info["toc_header_match_rate"] = compute_toc_match_rate(toc, sections)
-    qa_info["dedup_hash"]            = "sha256:" + hashlib.sha256(all_text.encode()).hexdigest()
-    qa_info["needs_subsplit_count"]  = sum(1 for s in sections if s.get("needs_subsplit"))
+    qa_info["dedup_hash"] = "sha256:" + hashlib.sha256(all_text.encode()).hexdigest()
+    qa_info["needs_subsplit_count"] = sum(1 for s in sections if s.get("needs_subsplit"))
 
     if qa_info.get("decorative_table_ratio", 0.0) > 0.15:
         qa_info["extraction_warnings"].append(
-            f'high_decorative_table_ratio: {qa_info["decorative_table_ratio"]:.1%}'
+            f"high_decorative_table_ratio: {qa_info['decorative_table_ratio']:.1%}"
         )
 
     return {
         "schema_version": "1.0",
-        "doc_id":         row["doc_id"],
-        "file_name":      str(row["파일명"]),
-        "source_format":  str(row["파일형식"]).lower(),
-        "processed_at":   str(date.today()),
+        "doc_id": row["doc_id"],
+        "file_name": str(row["파일명"]),
+        "source_format": str(row["파일형식"]).lower(),
+        "processed_at": str(date.today()),
         "metadata": {
-            "공고번호":       row["공고번호"],
-            "공고차수":       int(row["공고차수"]),
-            "사업명":         row["사업명"],
-            "사업금액":       int(row["사업금액"]) if pd.notna(row["사업금액"]) else None,
-            "발주기관":       row["발주기관"],
-            "공개일자":       row["공개일자"],
+            "공고번호": row["공고번호"],
+            "공고차수": int(row["공고차수"]),
+            "사업명": row["사업명"],
+            "사업금액": int(row["사업금액"]) if pd.notna(row["사업금액"]) else None,
+            "발주기관": row["발주기관"],
+            "공개일자": row["공개일자"],
             "입찰참여시작일": row["입찰참여시작일"],
             "입찰참여마감일": row["입찰참여마감일"],
-            "사업요약":       row["사업요약"],
-            "사업유형":       row["사업유형"],
-            "재공고여부":     bool(row["재공고여부"]),
-            "linked_doc_id":  None,
-            "목차존재":       len(toc) > 0,
+            "사업요약": row["사업요약"],
+            "사업유형": row["사업유형"],
+            "재공고여부": bool(row["재공고여부"]),
+            "linked_doc_id": None,
+            "목차존재": len(toc) > 0,
         },
-        "toc":      toc,
+        "toc": toc,
         "sections": sections,
-        "qa":       qa_info,
+        "qa": qa_info,
     }
 
 
@@ -805,38 +864,38 @@ def build_json_single(file_path: Path, sections: list, qa_info: dict, toc: list)
     fmt = file_path.suffix.lstrip(".").lower()
     all_text = " ".join(b["content"] for s in sections for b in s["blocks"])
     qa_info["toc_header_match_rate"] = compute_toc_match_rate(toc, sections)
-    qa_info["dedup_hash"]            = "sha256:" + hashlib.sha256(all_text.encode()).hexdigest()
-    qa_info["needs_subsplit_count"]  = sum(1 for s in sections if s.get("needs_subsplit"))
+    qa_info["dedup_hash"] = "sha256:" + hashlib.sha256(all_text.encode()).hexdigest()
+    qa_info["needs_subsplit_count"] = sum(1 for s in sections if s.get("needs_subsplit"))
 
     if qa_info.get("decorative_table_ratio", 0.0) > 0.15:
         qa_info["extraction_warnings"].append(
-            f'high_decorative_table_ratio: {qa_info["decorative_table_ratio"]:.1%}'
+            f"high_decorative_table_ratio: {qa_info['decorative_table_ratio']:.1%}"
         )
 
     return {
         "schema_version": "1.0",
-        "doc_id":         file_path.stem,
-        "file_name":      file_path.name,
-        "source_format":  fmt,
-        "processed_at":   str(date.today()),
+        "doc_id": file_path.stem,
+        "file_name": file_path.name,
+        "source_format": fmt,
+        "processed_at": str(date.today()),
         "metadata": {
-            "공고번호":       UNKNOWN,
-            "공고차수":       0,
-            "사업명":         file_path.stem,
-            "사업금액":       None,
-            "발주기관":       UNKNOWN,
-            "공개일자":       UNKNOWN,
+            "공고번호": UNKNOWN,
+            "공고차수": 0,
+            "사업명": file_path.stem,
+            "사업금액": None,
+            "발주기관": UNKNOWN,
+            "공개일자": UNKNOWN,
             "입찰참여시작일": UNKNOWN,
             "입찰참여마감일": UNKNOWN,
-            "사업요약":       UNKNOWN,
-            "사업유형":       infer_type(file_path.stem),
-            "재공고여부":     False,
-            "linked_doc_id":  None,
-            "목차존재":       len(toc) > 0,
+            "사업요약": UNKNOWN,
+            "사업유형": infer_type(file_path.stem),
+            "재공고여부": False,
+            "linked_doc_id": None,
+            "목차존재": len(toc) > 0,
         },
-        "toc":      toc,
+        "toc": toc,
         "sections": sections,
-        "qa":       qa_info,
+        "qa": qa_info,
     }
 
 
@@ -844,12 +903,22 @@ def build_json_single(file_path: Path, sections: list, qa_info: dict, toc: list)
 # 7. CSV 전처리
 # ══════════════════════════════════════════════════════════════
 
+
 def load_and_preprocess_csv(csv_path: Path, files_dir: Path) -> pd.DataFrame:
     df = pd.read_csv(csv_path, encoding="utf-8-sig")
     df.columns = [
-        "공고번호", "공고차수", "사업명", "사업금액", "발주기관",
-        "공개일자", "입찰참여시작일", "입찰참여마감일",
-        "사업요약", "파일형식", "파일명", "텍스트",
+        "공고번호",
+        "공고차수",
+        "사업명",
+        "사업금액",
+        "발주기관",
+        "공개일자",
+        "입찰참여시작일",
+        "입찰참여마감일",
+        "사업요약",
+        "파일형식",
+        "파일명",
+        "텍스트",
     ]
     print(f"원본 행 수: {len(df)}")
 
@@ -862,7 +931,7 @@ def load_and_preprocess_csv(csv_path: Path, files_dir: Path) -> pd.DataFrame:
     df = df.drop_duplicates(subset="_hash", keep="first").reset_index(drop=True)
     print(f"해시 중복 제거: {before - len(df)}건")
 
-    df["doc_id"] = [f"D{str(i+1).zfill(3)}" for i in range(len(df))]
+    df["doc_id"] = [f"D{str(i + 1).zfill(3)}" for i in range(len(df))]
 
     for col in ["공고번호", "공개일자", "입찰참여시작일", "입찰참여마감일", "사업요약"]:
         df[col] = df[col].fillna(UNKNOWN).astype(str)
@@ -873,10 +942,12 @@ def load_and_preprocess_csv(csv_path: Path, files_dir: Path) -> pd.DataFrame:
     df["재공고여부"] = df["공고차수"] > 0
 
     all_files = list(files_dir.iterdir())
-    file_map  = {nfc(f.name): f for f in all_files}
-    df["file_path"] = df["파일명"].apply(
-        lambda x: file_map.get(nfc(x)) if not pd.isna(x) else None
-    )
+    file_map = {nfc(f.name): f for f in all_files}
+
+    def _match_file(name: Any) -> Path | None:
+        return file_map.get(nfc(name)) if not pd.isna(name) else None
+
+    df["file_path"] = df["파일명"].apply(_match_file)
 
     success = df["file_path"].notna().sum()
     print(f"파일 매핑: {success}건 성공 / {len(df) - success}건 실패")
@@ -886,6 +957,7 @@ def load_and_preprocess_csv(csv_path: Path, files_dir: Path) -> pd.DataFrame:
 # ══════════════════════════════════════════════════════════════
 # 8. 단일 파일 파이프라인
 # ══════════════════════════════════════════════════════════════
+
 
 def run_single_file(file_path: Path, output_dir: Path):
     """CSV 없이 파일 하나만 처리"""
@@ -920,7 +992,7 @@ def run_single_file(file_path: Path, output_dir: Path):
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(doc_json, f, ensure_ascii=False, indent=2)
 
-    method   = qa_info.get("parse_method", "?")
+    method = qa_info.get("parse_method", "?")
     has_warn = len(qa_info["extraction_warnings"]) > 0
     print(
         f"  ✅ [{method}]  "
@@ -936,7 +1008,8 @@ def run_single_file(file_path: Path, output_dir: Path):
 # 9. CSV 기반 전체 파이프라인
 # ══════════════════════════════════════════════════════════════
 
-def run_pipeline(files_dir: Path, csv_path: Path, output_dir: Path, doc_ids: list = None):
+
+def run_pipeline(files_dir: Path, csv_path: Path, output_dir: Path, doc_ids: list | None = None):
     docs_dir = output_dir / "docs"
     docs_dir.mkdir(parents=True, exist_ok=True)
 
@@ -946,12 +1019,12 @@ def run_pipeline(files_dir: Path, csv_path: Path, output_dir: Path, doc_ids: lis
         print(f"필터링 후: {len(df)}건")
 
     manifest_rows = []
-    failed_docs   = []
+    failed_docs = []
 
     for _, row in df.iterrows():
-        doc_id    = row["doc_id"]
+        doc_id = row["doc_id"]
         file_path = row["file_path"]
-        fmt       = str(row["파일형식"]).lower()
+        fmt = str(row["파일형식"]).lower()
 
         print(f"\n[{doc_id}] {str(row['사업명'])[:45]}")
 
@@ -984,7 +1057,7 @@ def run_pipeline(files_dir: Path, csv_path: Path, output_dir: Path, doc_ids: lis
             continue
 
         tables_cleaned = clean_tables_in_doc(sections)
-        flagged_count  = flag_large_sections(sections, threshold=30)
+        flagged_count = flag_large_sections(sections, threshold=30)
         qa_info["needs_subsplit_count"] = flagged_count
 
         toc = extract_toc(row.get("텍스트", ""))
@@ -994,7 +1067,7 @@ def run_pipeline(files_dir: Path, csv_path: Path, output_dir: Path, doc_ids: lis
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(doc_json, f, ensure_ascii=False, indent=2)
 
-        method   = qa_info.get("parse_method", "?")
+        method = qa_info.get("parse_method", "?")
         has_warn = len(qa_info["extraction_warnings"]) > 0
         print(
             f"  ✅ [{method}]  "
@@ -1005,28 +1078,30 @@ def run_pipeline(files_dir: Path, csv_path: Path, output_dir: Path, doc_ids: lis
             f"{'⚠️' if has_warn else ''}"
         )
 
-        manifest_rows.append({
-            "doc_id":         doc_id,
-            "파일명":          row["파일명"],
-            "사업명":          row["사업명"],
-            "발주기관":        row["발주기관"],
-            "사업유형":        row["사업유형"],
-            "사업금액":        row["사업금액"],
-            "공개일자":        row["공개일자"],
-            "파일형식":        fmt,
-            "재공고여부":      row["재공고여부"],
-            "목차존재":        len(toc) > 0,
-            "total_sections": qa_info["total_sections"],
-            "total_blocks":   qa_info["total_blocks"],
-            "table_blocks":   qa_info["table_blocks"],
-            "has_warning":    has_warn,
-            "parse_method":   method,
-            "json_path":      str(out_path),
-        })
+        manifest_rows.append(
+            {
+                "doc_id": doc_id,
+                "파일명": row["파일명"],
+                "사업명": row["사업명"],
+                "발주기관": row["발주기관"],
+                "사업유형": row["사업유형"],
+                "사업금액": row["사업금액"],
+                "공개일자": row["공개일자"],
+                "파일형식": fmt,
+                "재공고여부": row["재공고여부"],
+                "목차존재": len(toc) > 0,
+                "total_sections": qa_info["total_sections"],
+                "total_blocks": qa_info["total_blocks"],
+                "table_blocks": qa_info["table_blocks"],
+                "has_warning": has_warn,
+                "parse_method": method,
+                "json_path": str(out_path),
+            }
+        )
 
     # 재공고 연결
     for mrow in manifest_rows:
-        did    = mrow["doc_id"]
+        did = mrow["doc_id"]
         re_row = df[df["doc_id"] == did]
         if re_row.empty:
             continue
@@ -1034,9 +1109,9 @@ def run_pipeline(files_dir: Path, csv_path: Path, output_dir: Path, doc_ids: lis
         if not re_row["재공고여부"]:
             continue
         candidates = df[
-            (df["사업명"]   == re_row["사업명"])   &
-            (df["발주기관"] == re_row["발주기관"]) &
-            (df["공고차수"] <  re_row["공고차수"])
+            (df["사업명"] == re_row["사업명"])
+            & (df["발주기관"] == re_row["발주기관"])
+            & (df["공고차수"] < re_row["공고차수"])
         ]
         if candidates.empty:
             continue
@@ -1052,21 +1127,21 @@ def run_pipeline(files_dir: Path, csv_path: Path, output_dir: Path, doc_ids: lis
 
     # manifest 저장
     if manifest_rows:
-        manifest_df   = pd.DataFrame(manifest_rows)
+        manifest_df = pd.DataFrame(manifest_rows)
         manifest_path = output_dir / "manifest.csv"
 
         if manifest_path.exists():
             existing = pd.read_csv(manifest_path, encoding="utf-8-sig")
-            new_ids  = [r["doc_id"] for r in manifest_rows]
+            new_ids = [r["doc_id"] for r in manifest_rows]
             existing = existing[~existing["doc_id"].isin(new_ids)]
-            updated  = pd.concat([existing, manifest_df], ignore_index=True)
+            updated = pd.concat([existing, manifest_df], ignore_index=True)
             updated.to_csv(manifest_path, index=False, encoding="utf-8-sig")
         else:
             manifest_df.to_csv(manifest_path, index=False, encoding="utf-8-sig")
         print(f"\nmanifest 저장: {manifest_path}")
 
     if failed_docs:
-        fail_df   = pd.DataFrame(failed_docs)
+        fail_df = pd.DataFrame(failed_docs)
         fail_path = output_dir / "failed_docs.csv"
         fail_df.to_csv(fail_path, index=False, encoding="utf-8-sig")
         print(f"실패 목록 저장: {fail_path}")
@@ -1087,9 +1162,11 @@ if __name__ == "__main__":
     parser.add_argument("--file", default=None, help="단일 파일 경로 (HWP 또는 PDF)")
 
     # CSV 기반 다건 모드
-    parser.add_argument("--files_dir",  default=None, help="원본 HWP/PDF 파일 디렉토리")
-    parser.add_argument("--csv_path",   default=None, help="메타데이터 CSV 경로 (data_list.csv)")
-    parser.add_argument("--doc_ids", nargs="*", default=None, help="처리할 doc_id 목록 (예: D001 D002)")
+    parser.add_argument("--files_dir", default=None, help="원본 HWP/PDF 파일 디렉토리")
+    parser.add_argument("--csv_path", default=None, help="메타데이터 CSV 경로 (data_list.csv)")
+    parser.add_argument(
+        "--doc_ids", nargs="*", default=None, help="처리할 doc_id 목록 (예: D001 D002)"
+    )
 
     parser.add_argument("--output_dir", required=True, help="JSON 출력 디렉토리")
     args = parser.parse_args()
@@ -1097,20 +1174,22 @@ if __name__ == "__main__":
     if args.file:
         # 단일 파일 모드
         run_single_file(
-            file_path  = Path(args.file),
-            output_dir = Path(args.output_dir),
+            file_path=Path(args.file),
+            output_dir=Path(args.output_dir),
         )
     elif args.files_dir and args.csv_path:
         # CSV 기반 다건 모드
         run_pipeline(
-            files_dir  = Path(args.files_dir),
-            csv_path   = Path(args.csv_path),
-            output_dir = Path(args.output_dir),
-            doc_ids    = args.doc_ids,
+            files_dir=Path(args.files_dir),
+            csv_path=Path(args.csv_path),
+            output_dir=Path(args.output_dir),
+            doc_ids=args.doc_ids,
         )
     else:
         print("오류: --file 또는 (--files_dir + --csv_path) 중 하나를 지정하세요.")
         print()
         print("단일 파일:  python pipeline.py --file ./files/문서.hwp --output_dir ./output")
-        print("CSV 기반:   python pipeline.py --files_dir ./files --csv_path ./data_list.csv --output_dir ./output")
+        print(
+            "CSV 기반:   python pipeline.py --files_dir ./files --csv_path ./data_list.csv --output_dir ./output"
+        )
         sys.exit(1)

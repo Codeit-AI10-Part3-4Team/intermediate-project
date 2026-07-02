@@ -1,3 +1,4 @@
+
 # 파서 parity 검증 보고서
 
 - **대상 브랜치**: `feature/parser-parity-check`
@@ -61,9 +62,6 @@ python scripts/parity_check_parsing.py --golden ./golden/docs --candidate ./new/
 ---
 ## 4. parity 검증 결과
 
----
-
-## 4. parity 검증 결과
 
 ### 실행 환경
 

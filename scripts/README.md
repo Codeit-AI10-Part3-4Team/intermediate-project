@@ -38,7 +38,7 @@
 
 | 스크립트 | 용도 | 사전조건 | 사용법 |
 |----------|------|----------|--------|
-| `setup-env.sh` *(예정)* | 가상환경 생성 + 의존성 설치 | Python 3.11 | `bash scripts/setup-env.sh` |
+| `setup-env.sh` *(예정)* | 가상환경 생성 + 의존성 설치 | Python 3.12 | `bash scripts/setup-env.sh` |
 | `run-tests.sh` *(예정)* | 린트 + 단위 테스트 실행 | 의존성 설치 완료 | `bash scripts/run-tests.sh` |
 
 > 의존성 매니페스트(`pyproject.toml`/`requirements.txt`)가 아직 없습니다. 매니페스트 확정 후

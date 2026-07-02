@@ -39,6 +39,6 @@ body:
     id: env
     attributes:
       label: 환경
-      placeholder: "예: GCP VM / JupyterHub, Python 3.11"
+      placeholder: "예: GCP VM / JupyterHub, Python 3.12"
     validations:
       required: false

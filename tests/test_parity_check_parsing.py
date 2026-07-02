@@ -19,6 +19,7 @@ _spec.loader.exec_module(parity)
 
 
 def _doc(
+<<<<<<< HEAD
     doc_id: str, blocks: list[tuple[str, str]], *, parse_method: str = "A1_inprocess_api"
 ) -> dict:
     """parity 비교 함수가 읽는 최소 문서 dict 빌더 (단일 섹션).
@@ -29,6 +30,28 @@ def _doc(
         "doc_id": doc_id,
         "sections": [{"blocks": [{"type": t, "content": c} for t, c in blocks]}],
         "qa": {"parse_method": parse_method},
+=======
+    doc_id: str,
+    blocks: list[tuple[str, str]],
+    *,
+    dedup_hash: str = "sha256:abc",
+    total_sections: int = 1,
+    total_blocks: int | None = None,
+    table_blocks: int = 0,
+    parse_method: str = "A1_inprocess_api",
+) -> dict:
+    """parity 비교 함수가 읽는 최소 문서 dict 빌더."""
+    return {
+        "doc_id": doc_id,
+        "sections": [{"blocks": [{"type": t, "content": c} for t, c in blocks]}],
+        "qa": {
+            "dedup_hash": dedup_hash,
+            "total_sections": total_sections,
+            "total_blocks": len(blocks) if total_blocks is None else total_blocks,
+            "table_blocks": table_blocks,
+            "parse_method": parse_method,
+        },
+>>>>>>> origin/main
     }
 
 
@@ -42,7 +65,11 @@ def _write_docs(dir_path: Path, docs: list[dict]) -> Path:
 
 
 # ─────────────────────────────────────────────────────────────
+<<<<<<< HEAD
 # diff_doc — 저장 블록에서 재계산해 비교
+=======
+# diff_doc — 레이어드 비교
+>>>>>>> origin/main
 # ─────────────────────────────────────────────────────────────
 
 
@@ -53,19 +80,30 @@ def test_diff_doc_identical_is_ok():
     assert diff.reasons == []
 
 
+<<<<<<< HEAD
 def test_diff_doc_text_mismatch_reports_first_block():
     golden = _doc("D001", [("text", "hello")])
     candidate = _doc("D001", [("text", "hallo")])
+=======
+def test_diff_doc_dedup_hash_mismatch_reports_first_block():
+    golden = _doc("D001", [("text", "hello")], dedup_hash="sha256:aaa")
+    candidate = _doc("D001", [("text", "hallo")], dedup_hash="sha256:bbb")
+>>>>>>> origin/main
     diff = parity.diff_doc(golden, candidate)
 
     assert not diff.ok
     joined = "\n".join(diff.reasons)
+<<<<<<< HEAD
     assert "본문 텍스트 불일치" in joined
+=======
+    assert "dedup_hash 불일치" in joined
+>>>>>>> origin/main
     # 텍스트가 어긋나면 첫 불일치 블록 위치도 함께 보고한다.
     assert "블록#0" in joined
     assert "content 다름" in joined
 
 
+<<<<<<< HEAD
 def test_diff_doc_ignores_stale_stored_dedup_hash():
     # 블록(본문)은 동일하지만 저장된 qa.dedup_hash만 다른 경우 — 파이프라인 간
     # 해시 계산 시점 차이(D043 시나리오). 재계산 비교이므로 일치로 판정해야 한다.
@@ -123,14 +161,37 @@ def test_diff_doc_reports_section_count_diff():
         "qa": {"parse_method": "A1_inprocess_api"},
         "sections": [{"blocks": [{"type": "text", "content": "a"}]}, {"blocks": []}],
     }
+=======
+def test_diff_doc_reports_block_type_change():
+    golden = _doc("D001", [("text", "x")], dedup_hash="sha256:aaa")
+    candidate = _doc("D001", [("table", "x")], dedup_hash="sha256:bbb")
+    diff = parity.diff_doc(golden, candidate)
+
+    joined = "\n".join(diff.reasons)
+    assert "type text→table" in joined
+
+
+def test_diff_doc_reports_structure_count_diffs():
+    golden = _doc("D001", [("text", "x")], total_sections=1, total_blocks=1, table_blocks=0)
+    candidate = _doc("D001", [("text", "x")], total_sections=2, total_blocks=3, table_blocks=1)
+>>>>>>> origin/main
     diff = parity.diff_doc(golden, candidate)
 
     joined = "\n".join(diff.reasons)
     assert "total_sections: 1 → 2" in joined
+<<<<<<< HEAD
 
 
 def test_diff_doc_reports_parse_method_fallback():
     # 본문·구조는 같고 추출 경로만 폴백 전환 — 회귀의 강한 신호.
+=======
+    assert "total_blocks: 1 → 3" in joined
+    assert "table_blocks: 0 → 1" in joined
+
+
+def test_diff_doc_reports_parse_method_fallback():
+    # 해시·구조는 같고 추출 경로만 폴백 전환 — 회귀의 강한 신호.
+>>>>>>> origin/main
     golden = _doc("D001", [("text", "x")], parse_method="A1_inprocess_api")
     candidate = _doc("D001", [("text", "x")], parse_method="B_libreoffice_docx")
     diff = parity.diff_doc(golden, candidate)
@@ -139,6 +200,7 @@ def test_diff_doc_reports_parse_method_fallback():
     assert "parse_method: A1_inprocess_api → B_libreoffice_docx" in joined
 
 
+<<<<<<< HEAD
 def test_diff_doc_normalizes_equivalent_parse_method():
     # hwp5xml ≡ A1_inprocess_api (라벨만 다른 동일 엔진) — 불일치로 잡지 않는다 (D026 시나리오).
     golden = _doc("D001", [("text", "x")], parse_method="hwp5xml")
@@ -148,6 +210,8 @@ def test_diff_doc_normalizes_equivalent_parse_method():
     assert diff.ok
 
 
+=======
+>>>>>>> origin/main
 # ─────────────────────────────────────────────────────────────
 # _first_block_mismatch
 # ─────────────────────────────────────────────────────────────
@@ -208,17 +272,35 @@ def test_load_docs_raises_on_invalid_json(tmp_path):
 def test_compare_dirs_partitions_and_diffs(tmp_path):
     golden_dir = _write_docs(
         tmp_path / "golden",
+<<<<<<< HEAD
         [_doc("D001", [("text", "x")]), _doc("D002", [("text", "same")])],
     )
     candidate_dir = _write_docs(
         tmp_path / "candidate",
         [_doc("D002", [("text", "changed")]), _doc("D003", [("text", "z")])],
+=======
+        [
+            _doc("D001", [("text", "x")]),
+            _doc("D002", [("text", "same")], dedup_hash="sha256:aaa"),
+        ],
+    )
+    candidate_dir = _write_docs(
+        tmp_path / "candidate",
+        [
+            _doc("D002", [("text", "changed")], dedup_hash="sha256:bbb"),
+            _doc("D003", [("text", "z")]),
+        ],
+>>>>>>> origin/main
     )
 
     diffs, golden_only, candidate_only = parity.compare_dirs(golden_dir, candidate_dir)
 
     assert golden_only == ["D001"]
     assert candidate_only == ["D003"]
+<<<<<<< HEAD
     # 공통은 D002 하나이며, 본문 텍스트가 달라 불일치로 잡혀야 한다.
+=======
+    # 공통은 D002 하나이며, 해시가 달라 불일치로 잡혀야 한다.
+>>>>>>> origin/main
     assert [d.doc_id for d in diffs] == ["D002"]
     assert not diffs[0].ok
