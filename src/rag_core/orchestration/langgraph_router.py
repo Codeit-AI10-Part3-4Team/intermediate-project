@@ -24,15 +24,14 @@ Retriever(Hybrid RRF) + Ollama(exaone3.5:7.8b) 실제 연동 버전.
 
 from __future__ import annotations
 
-import json
+import collections
+import os
 import sys
 from typing import Literal, Optional, TypedDict
 
+import requests
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
-
-import os
-import collections
 
 sys.path.insert(0, "src")
 from rag_core.retrieval.retriever import Retriever
@@ -41,6 +40,7 @@ from rag_core.llm.pipeline import (
     is_score_prediction_question,
     score_prediction_guardrail_answer,
 )
+from rag_core.prompts.prompt import exaone_rag_qa_prompt, exaone_multi_doc_prompt
 
 
 # ──────────────────────────────────────────────
