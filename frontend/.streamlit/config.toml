@@ -1,0 +1,11 @@
+# Streamlit server config — applies when running from frontend/ (streamlit run app.py).
+# On the GCP VM, port 8501 is the only externally opened port; the API stays on loopback.
+
+[server]
+headless = true
+port = 8501
+address = "0.0.0.0"
+maxUploadSize = 20  # MB, keep in sync with api/routers/upload.py MAX_UPLOAD_BYTES
+
+[browser]
+gatherUsageStats = false

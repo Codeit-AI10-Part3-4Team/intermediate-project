@@ -86,6 +86,8 @@ intermediate-project/
 │   ├── golden_dataset/    # 골든 데이터셋 (123개 QA)
 │   ├── metrics.py         # 평가 지표 계산 함수
 │   └── eval_criteria.md   # 평가 기준 문서
+├── frontend/              # Streamlit 웹 UI (질의·업로드 페이지)
+├── deploy/                # VM 배포 자산 (systemd 유닛, 환경 스냅샷)
 ├── notebooks/             # Jupyter Notebooks
 │   ├── data/              # EDA, 전처리 실험
 │   ├── retrieval/         # 청킹, 임베딩, 검색 실험
@@ -124,7 +126,24 @@ cd intermediate-project
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
+# 패키지 설치 (editable) — 용도에 맞는 extra 선택
+pip install -e ".[dev]"       # 개발·테스트 도구 포함
+pip install -e ".[frontend]"  # 웹 UI(Streamlit)까지 실행하려면
 ```
+
+### 실행 (API 서버 + 웹 UI)
+
+```bash
+# 1) 백엔드 API (목업 모드 기본, use_mock=True)
+uvicorn api.main:app --reload          # http://127.0.0.1:8000/docs
+
+# 2) 프론트엔드 (별도 터미널)
+cd frontend
+streamlit run app.py                   # http://localhost:8501
+```
+
+> GCP VM 상시 서비스(포트·systemd)는 [frontend/README.md](frontend/README.md)와
+> `deploy/systemd/rfp-*.service` 참고.
 
 ### Vector DB 설정
 

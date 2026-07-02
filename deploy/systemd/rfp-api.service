@@ -1,0 +1,27 @@
+# RFP RAG FastAPI backend.
+# Binds to loopback only — external access goes through the Streamlit frontend (8501).
+# Port 8090 (8000·8001·8081 = JupyterHub, 8080 = PM 실험 프로세스 — 모두 사용 불가).
+# `python -m uvicorn` 사용: uvicorn 단독 실행 파일은 공용 /opt/jhub-venv 것이 PATH에 먼저 잡힘.
+#
+# 설치 (경로·계정이 다르면 아래 User/WorkingDirectory/ExecStart 수정):
+#   sudo cp deploy/systemd/rfp-api.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now rfp-api
+
+[Unit]
+Description=RFP RAG API (FastAPI/uvicorn, loopback:8090)
+After=network.target
+
+[Service]
+Type=simple
+User=seen
+WorkingDirectory=/home/seen/intermediate-project
+# ~/ai venv는 일부 의존성(uvicorn 등)을 공용 venv에서 PYTHONPATH로 빌려 씀 —
+# JupyterHub 터미널과 동일한 배선(jupyterhub.service 참고). systemd는 빈 환경으로
+# 시작하므로 명시하지 않으면 ModuleNotFoundError로 즉사한다.
+Environment=PYTHONPATH=/opt/jhub-venv/lib/python3.12/site-packages
+ExecStart=/home/seen/ai/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8090
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
