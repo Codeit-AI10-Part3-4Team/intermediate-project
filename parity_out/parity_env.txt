@@ -1,0 +1,12 @@
+# parity 실행 환경 스냅샷
+python           : 3.10.11 (C:\Codes\Codeit_AI10_Part3_4Teamintermediate_project\venv\Scripts\python.exe)
+platform         : Windows-10-10.0.26200-SP0
+
+# 파싱 라이브러리 버전 (golden 생성 시점과 달라지면 parity가 깨질 수 있음)
+pyhwp            : 0.1b15
+pdfplumber       : 0.11.10
+lxml             : 6.1.1
+pandas           : 2.3.3
+python-docx      : 1.2.0
+
+soffice          : (soffice 없음 — HWP LibreOffice 폴백 불가)
