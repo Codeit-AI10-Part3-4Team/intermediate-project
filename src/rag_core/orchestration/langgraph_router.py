@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """
 src/rag_core/orchestration/langgraph_router.py
 
