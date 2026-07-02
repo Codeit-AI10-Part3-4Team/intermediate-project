@@ -35,6 +35,7 @@ class LangGraphOrchestrator:
 
         # LangGraph 앱 초기화 (Retriever + Ollama 포함)
         from rag_core.orchestration.langgraph_router import build_graph
+
         self._app = build_graph(chroma_dir=chroma_dir)
 
     def run(

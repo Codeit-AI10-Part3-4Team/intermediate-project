@@ -17,6 +17,7 @@ async def lifespan(app: FastAPI):
     else:
         # 실제 LangGraph Orchestrator 연결
         from rag_core.orchestration.orchestrator import LangGraphOrchestrator
+
         app.state.orchestrator = LangGraphOrchestrator()
         app.state.suitability_checker = MockSuitabilityChecker()  # 추후 실제 구현으로 교체
 

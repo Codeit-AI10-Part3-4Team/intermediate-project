@@ -47,12 +47,14 @@ from rag_core.prompts.prompt import exaone_rag_qa_prompt, exaone_multi_doc_promp
 # RetrievedChunk → pipeline.py 호환 어댑터
 # ──────────────────────────────────────────────
 
+
 class _DocAdapter:
     """
     Retriever.retrieve()가 반환하는 RetrievedChunk를
     pipeline.py의 format_rag_context()가 기대하는
     (page_content, metadata) 인터페이스로 변환한다.
     """
+
     def __init__(self, chunk):
         self.page_content = chunk.chunk.text
         self.metadata = chunk.chunk.metadata
@@ -60,6 +62,7 @@ class _DocAdapter:
 
 def _to_docs(retrieved: list) -> list:
     return [_DocAdapter(r) for r in retrieved]
+
 
 # ──────────────────────────────────────────────
 # 설정 (환경변수로 주입, 기본값 제공)
@@ -76,8 +79,10 @@ TOP_K_REQUIREMENT = int(os.getenv("TOP_K_REQUIREMENT", "15"))
 # State 정의
 # ──────────────────────────────────────────────
 
+
 class RagState(TypedDict, total=False):
     """LangGraph 전체 파이프라인에서 공유되는 상태."""
+
     question: str
     rewritten_question: str
     question_type: str
@@ -86,13 +91,13 @@ class RagState(TypedDict, total=False):
     retrieved_chunks: list[str]
     retrieved_sources: list[dict]
     answer: str
-    related_questions: str      # 지우님 generate_followup() 결과
-    style_prompt: str           # 문체 변환 유도 문구
+    related_questions: str  # 지우님 generate_followup() 결과
+    style_prompt: str  # 문체 변환 유도 문구
     history: list[dict]
     error: Optional[str]
     # 입찰 적합도 분석 전용
-    company_info: Optional[str]     # 사용자 입력 회사 정보 (없으면 A만 실행)
-    bid_analysis: Optional[dict]    # 분석 결과 (항목별 점수, 종합 점수, 리스크 등)
+    company_info: Optional[str]  # 사용자 입력 회사 정보 (없으면 A만 실행)
+    bid_analysis: Optional[dict]  # 분석 결과 (항목별 점수, 종합 점수, 리스크 등)
 
 
 QuestionType = Literal[
@@ -102,8 +107,8 @@ QuestionType = Literal[
     "multi_doc_summary",
     "multiturn",
     "guardrail",
-    "bid_analysis",     # 입찰 적합도 분석
-    "rewrite",          # 문체 변환
+    "bid_analysis",  # 입찰 적합도 분석
+    "rewrite",  # 문체 변환
 ]
 
 # ──────────────────────────────────────────────
@@ -114,10 +119,27 @@ _MULTI_DOC_KEYWORDS = ["비교", "vs", "VS", "차이", "각각", "두 사업", "
 _GUARDRAIL_KEYWORDS = ["날씨", "주식", "오늘 뉴스", "너는 누구", "기술점수 몇 점", "당첨 확률"]
 _MULTITURN_KEYWORDS = ["그 사업", "그것", "이전 질문", "방금", "그럼"]
 _REQUIREMENT_KEYWORDS = ["요구사항", "보안", "성능", "기능", "납품", "사양", "조건"]
-_BID_ANALYSIS_KEYWORDS = ["입찰 적합도", "적합도 분석", "입찰 분석", "리스크 분석",
-                           "우리 회사", "참여 가능", "지원 가능", "낙찰 가능성"]
-_REWRITE_KEYWORDS = ["문체 변환", "공문서", "공문서 형식", "공식 문서", "형식으로 변환",
-                      "문서 형식", "사업제안서", "보고서 형식", "공식적으로"]
+_BID_ANALYSIS_KEYWORDS = [
+    "입찰 적합도",
+    "적합도 분석",
+    "입찰 분석",
+    "리스크 분석",
+    "우리 회사",
+    "참여 가능",
+    "지원 가능",
+    "낙찰 가능성",
+]
+_REWRITE_KEYWORDS = [
+    "문체 변환",
+    "공문서",
+    "공문서 형식",
+    "공식 문서",
+    "형식으로 변환",
+    "문서 형식",
+    "사업제안서",
+    "보고서 형식",
+    "공식적으로",
+]
 
 
 def classify_question_keyword(question: str, has_history: bool) -> QuestionType:
@@ -143,6 +165,7 @@ def classify_question_keyword(question: str, has_history: bool) -> QuestionType:
 # LLM 호출 (Ollama → OpenAI fallback)
 # ──────────────────────────────────────────────
 
+
 def call_ollama(prompt: str, model: str = OLLAMA_MODEL) -> str:
     """Ollama로 LLM 호출. 실패 시 RuntimeError 발생."""
     try:
@@ -165,6 +188,7 @@ def call_llm_with_fallback(prompt: str) -> str:
         print(f"[LLM] Ollama 실패 → OpenAI fallback: {e}")
         try:
             from openai import OpenAI
+
             client = OpenAI()
             resp = client.chat.completions.create(
                 model="gpt-4o-mini",
@@ -179,6 +203,7 @@ def call_llm_with_fallback(prompt: str) -> str:
 # ──────────────────────────────────────────────
 # 프롬프트 구성
 # ──────────────────────────────────────────────
+
 
 def build_prompt(question: str, chunks: list[str], question_type: str) -> str:
     """지우님 prompt.py 최종본 import 버전."""
@@ -212,6 +237,7 @@ def get_retriever(chroma_dir: str = CHROMA_DIR_DEFAULT) -> Retriever:
 # ──────────────────────────────────────────────
 # 노드 함수
 # ──────────────────────────────────────────────
+
 
 def query_rewriting_node(state: RagState) -> dict:
     """Query Rewriting: doc_id_hint 있으면 query에 포함."""
@@ -305,7 +331,9 @@ def multi_doc_compare_node(state: RagState) -> dict:
         final_top_k = sorted_docs[:TOP_K_DEFAULT]
 
         chunks = [doc_map[key].text for key, score in final_top_k]
-        sources = [{"doc_id": doc_map[key].doc_id, "rrf_score": score} for key, score in final_top_k]
+        sources = [
+            {"doc_id": doc_map[key].doc_id, "rrf_score": score} for key, score in final_top_k
+        ]
         return {"retrieved_chunks": chunks, "retrieved_sources": sources}
     except Exception as e:
         return {"retrieved_chunks": [], "retrieved_sources": [], "error": str(e)}
@@ -335,8 +363,16 @@ def multiturn_node(state: RagState) -> dict:
     # 이전 질문에서 사업명/기관명 키워드 추출 (조사 제거)
     # "국민연금공단 이러닝시스템 사업의 예산은?" → "국민연금공단 이러닝시스템 사업"
     topic = prev_question
-    for suffix in ["의 예산은 얼마인가요?", "은 얼마인가요?", "을 알려주세요", "은 무엇인가요?",
-                   "는 무엇인가요?", "을 설명해주세요", "이 궁금합니다", "?"]:
+    for suffix in [
+        "의 예산은 얼마인가요?",
+        "은 얼마인가요?",
+        "을 알려주세요",
+        "은 무엇인가요?",
+        "는 무엇인가요?",
+        "을 설명해주세요",
+        "이 궁금합니다",
+        "?",
+    ]:
         topic = topic.replace(suffix, "").strip()
 
     # 현재 질문의 대명사를 주제로 교체
@@ -390,17 +426,21 @@ def bid_analysis_node(state: RagState) -> dict:
 
     # 3단계: 회사 정보 있으면 프롬프트에 추가
     if company_info:
-        full_prompt = rfp_analysis_prompt.rstrip("[분석]").rstrip() + f"""
+        full_prompt = (
+            rfp_analysis_prompt.rstrip("[분석]").rstrip()
+            + f"""
 
 [회사 정보]
 {company_info}
 
 [분석]"""
+        )
     else:
         full_prompt = rfp_analysis_prompt
 
     # LLM 호출
     import requests as req
+
     try:
         resp = req.post(
             OLLAMA_URL,
@@ -412,11 +452,11 @@ def bid_analysis_node(state: RagState) -> dict:
         import re as _re
 
         def _extract_line(key, text, default="확인필요"):
-            m = _re.search(rf'{key}:\s*(.+)', text)
+            m = _re.search(rf"{key}:\s*(.+)", text)
             return m.group(1).strip() if m else default
 
         def _parse_item(key, text, name):
-            m = _re.search(rf'{key}:\s*(\d+)\s*\|\s*([^|\n]+)\s*\|\s*(.+)', text)
+            m = _re.search(rf"{key}:\s*(\d+)\s*\|\s*([^|\n]+)\s*\|\s*(.+)", text)
             if m:
                 score = int(m.group(1))
                 tag_raw = m.group(2).strip()
@@ -445,11 +485,11 @@ def bid_analysis_node(state: RagState) -> dict:
         ]
 
         # 종합점수 — "종합점수: 67" 또는 "종합점수: 67 | 검토필요 | ..." 형태 모두 처리
-        total_m = _re.search(r'종합점수:\s*(\d+)', raw)
+        total_m = _re.search(r"종합점수:\s*(\d+)", raw)
         total = int(total_m.group(1)) if total_m else sum(i["score"] for i in items)
 
         # 등급 — "등급: 검토필요" 또는 "등급: 검토필요 | ..." 형태 모두 처리
-        grade_m = _re.search(r'등급:\s*(적합|검토필요|미적합)', raw)
+        grade_m = _re.search(r"등급:\s*(적합|검토필요|미적합)", raw)
         grade_raw = grade_m.group(1).strip() if grade_m else "검토필요"
         grade_map = {"적합": "🟢 적합", "검토필요": "🟡 검토필요", "미적합": "🔴 미적합"}
         grade = grade_map.get(grade_raw, "🟡 검토필요")
@@ -458,9 +498,9 @@ def bid_analysis_node(state: RagState) -> dict:
         risks = []
         for i in [1, 2]:
             # 파이프 형식: 마지막 파이프 이후 내용 추출
-            m_pipe = _re.search(rf'리스크{i}:\s*\d+\s*\|\s*[^|]+\|\s*(.+)', raw)
+            m_pipe = _re.search(rf"리스크{i}:\s*\d+\s*\|\s*[^|]+\|\s*(.+)", raw)
             # 일반 형식
-            m_plain = _re.search(rf'리스크{i}:\s*(?!\d+\s*\|)(.+)', raw)
+            m_plain = _re.search(rf"리스크{i}:\s*(?!\d+\s*\|)(.+)", raw)
             if m_pipe:
                 risks.append(m_pipe.group(1).strip())
             elif m_plain:
@@ -469,8 +509,12 @@ def bid_analysis_node(state: RagState) -> dict:
             risks = ["세부 요건 확인 필요"]
 
         # 권고
-        rec_m = _re.search(r'권고[:\s]+(.+)', raw)
-        recommendation = rec_m.group(1).strip().lstrip('-').strip() if rec_m else "세부 요건을 확인 후 입찰 참여 여부를 결정하세요."
+        rec_m = _re.search(r"권고[:\s]+(.+)", raw)
+        recommendation = (
+            rec_m.group(1).strip().lstrip("-").strip()
+            if rec_m
+            else "세부 요건을 확인 후 입찰 참여 여부를 결정하세요."
+        )
 
         bid_result = {
             "items": items,
@@ -491,29 +535,33 @@ def bid_analysis_node(state: RagState) -> dict:
         }
 
     # 사람이 읽기 좋은 텍스트 답변도 생성
-    items_text = "\n".join([
-        f"- {item['name']}: {item['score']}점 {item['tag']} — {item['reason']}"
-        for item in bid_result.get("items", [])
-    ])
+    items_text = "\n".join(
+        [
+            f"- {item['name']}: {item['score']}점 {item['tag']} — {item['reason']}"
+            for item in bid_result.get("items", [])
+        ]
+    )
     answer = f"""**입찰 적합도 분석 결과**
 
-**종합 점수: {bid_result.get('total_score', 0)}점 / 100점** {bid_result.get('grade', '')}
+**종합 점수: {bid_result.get("total_score", 0)}점 / 100점** {bid_result.get("grade", "")}
 
 **항목별 평가:**
 {items_text}
 
 **주요 리스크:**
-{chr(10).join(['- ' + r for r in bid_result.get('risks', [])])}
+{chr(10).join(["- " + r for r in bid_result.get("risks", [])])}
 
-**권고사항:** {bid_result.get('recommendation', '')}"""
+**권고사항:** {bid_result.get("recommendation", "")}"""
 
     # 히스토리 업데이트
     history = list(state.get("history") or [])
-    history.append({
-        "question": state.get("question", ""),
-        "answer": answer,
-        "doc_id_hint": state.get("doc_id_hint"),
-    })
+    history.append(
+        {
+            "question": state.get("question", ""),
+            "answer": answer,
+            "doc_id_hint": state.get("doc_id_hint"),
+        }
+    )
 
     return {
         "answer": answer,
@@ -572,6 +620,7 @@ def rewrite_node(state: RagState) -> dict:
 
     try:
         import requests as req
+
         resp = req.post(
             OLLAMA_URL,
             json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
@@ -584,11 +633,13 @@ def rewrite_node(state: RagState) -> dict:
 
     # 히스토리 업데이트
     history_new = list(history)
-    history_new.append({
-        "question": question,
-        "answer": converted,
-        "doc_id_hint": state.get("doc_id_hint"),
-    })
+    history_new.append(
+        {
+            "question": question,
+            "answer": converted,
+            "doc_id_hint": state.get("doc_id_hint"),
+        }
+    )
 
     return {"answer": converted, "history": history_new}
 
@@ -597,7 +648,7 @@ def guardrail_node(state: RagState) -> dict:
     """가드레일: Retrieval 생략, 고정 응답 반환."""
     return {
         "answer": "죄송합니다. 해당 질문은 RFP 문서 분석 범위를 벗어나거나, "
-                  "현재 보유한 문서에서 확인할 수 있는 정보가 아닙니다."
+        "현재 보유한 문서에서 확인할 수 있는 정보가 아닙니다."
     }
 
 
@@ -638,11 +689,13 @@ def generation_node(state: RagState) -> dict:
 
     # 히스토리 업데이트
     history = list(state.get("history") or [])
-    history.append({
-        "question": state.get("question", ""),
-        "answer": answer,
-        "doc_id_hint": state.get("doc_id_hint"),
-    })
+    history.append(
+        {
+            "question": state.get("question", ""),
+            "answer": answer,
+            "doc_id_hint": state.get("doc_id_hint"),
+        }
+    )
 
     return {
         "answer": answer,
@@ -655,6 +708,7 @@ def generation_node(state: RagState) -> dict:
 # ──────────────────────────────────────────────
 # Graph 빌드
 # ──────────────────────────────────────────────
+
 
 def build_graph(chroma_dir: str = CHROMA_DIR_DEFAULT):
     """
@@ -724,7 +778,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--chroma-dir", default=CHROMA_DIR_DEFAULT)
-    parser.add_argument("--keyword-only", action="store_true", help="키워드 분류기만 테스트 (Retriever/LLM 없이)")
+    parser.add_argument(
+        "--keyword-only", action="store_true", help="키워드 분류기만 테스트 (Retriever/LLM 없이)"
+    )
     args = parser.parse_args()
 
     if args.keyword_only:
@@ -763,7 +819,7 @@ if __name__ == "__main__":
             print(f"질문: {question}")
             result = app.invoke(
                 {"question": question, "history": []},
-                config={"configurable": {"thread_id": f"test_{desc[:5]}"}}
+                config={"configurable": {"thread_id": f"test_{desc[:5]}"}},
             )
             print(f"유형: {result.get('question_type')}")
             print(f"답변: {result.get('answer', '')[:200]}")
