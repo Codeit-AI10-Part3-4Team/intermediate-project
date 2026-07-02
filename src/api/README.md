@@ -25,6 +25,22 @@ api/
 └── dependencies.py      # app.state 구현체를 Depends로 주입 (타입은 rag_core Protocol)
 ```
 
+## API 문서 (Swagger UI)
+
+- **로컬**: `uvicorn api.main:app --reload` → http://127.0.0.1:8000/docs
+- **VM(상시 서비스)**: API는 의도적으로 loopback(127.0.0.1:8090) 전용이라 포트 직접 접근이 안 됩니다.
+  JupyterHub 로그인 후 아래 주소로 접근하세요 (`jupyter-server-proxy` 경유, 팀원 계정만 가능):
+
+  ```
+  http://136.119.102.164:8000/user/<본인ID>/proxy/8090/docs
+  ```
+
+  `<본인ID>`는 JupyterHub 로그인 계정입니다. Try it out으로 `/rag`·`/upload`를 실제 호출해
+  Mock 응답을 확인할 수 있습니다.
+- 구현 메모: 기본 `/docs`는 절대 경로 `/openapi.json`을 하드코딩해 프록시 프리픽스
+  (`/user/<id>/proxy/8090`) 아래에서 스펙 로드가 깨집니다. 그래서 `main.py`가 기본 docs를 끄고
+  **상대 경로로 스펙을 참조하는 커스텀 `/docs`**를 제공합니다 (`/redoc`은 비활성).
+
 ## 서버 호출 구조 통일 (계약 = contracts)
 협업 시 각자 만든 모듈이 서로 맞물리도록, **데이터 모델과 인터페이스(계약)를 한 곳에서 정의**합니다.
 

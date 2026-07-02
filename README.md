@@ -144,6 +144,10 @@ streamlit run app.py                   # http://localhost:8501
 
 > GCP VM 상시 서비스(포트·systemd)는 [frontend/README.md](frontend/README.md)와
 > `deploy/systemd/rfp-*.service` 참고.
+>
+> **API 문서(Swagger)**: 로컬은 위 `/docs` 주소. VM 상시 API(loopback:8090)는 JupyterHub 로그인 후
+> `http://136.119.102.164:8000/user/<본인ID>/proxy/8090/docs` 로 접근합니다
+> (자세한 내용은 [src/api/README.md](src/api/README.md) 참고).
 
 ### Vector DB 설정
 
