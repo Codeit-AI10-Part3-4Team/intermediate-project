@@ -23,15 +23,15 @@ repos:
       - id: detect-private-key   # LLM 키/비밀키 평문 커밋 방지
 
   # ruff — CI의 lint/format 게이트와 동일 검사 (pyproject [tool.ruff] 설정 공유).
-  # src/, tests/ 만 대상. ruff-check는 자동 수정(--fix), ruff-format은 자동 포맷.
+  # src/, tests/, frontend/ 대상. ruff-check는 자동 수정(--fix), ruff-format은 자동 포맷.
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.9
     hooks:
       - id: ruff
         args: ["--fix"]
-        files: ^(src|tests)/.*\.py$
+        files: ^(src|tests|frontend)/.*\.py$
       - id: ruff-format
-        files: ^(src|tests)/.*\.py$
+        files: ^(src|tests|frontend)/.*\.py$
 
   # pytest — push 직전에만 실행(커밋마다 돌리기엔 무거움). CI test job과 동일 역할.
   # 로컬 env에 `pip install -e ".[dev]"`가 돼 있어야 한다.

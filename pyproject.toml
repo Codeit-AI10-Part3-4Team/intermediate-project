@@ -38,6 +38,12 @@ retrieval = [
     "langchain-openai>=0.1.0",        # embedding: OpenAIEmbeddings
     "sentence-transformers>=2.2.0",   # retrieval: CrossEncoder 리랭커
 ]
+# 프론트엔드(Streamlit UI) 의존성. 필요 시: pip install -e ".[frontend]"
+# httpx는 dev에도 있어 CI(frontend 미설치)에서도 api_client 테스트·타입체크가 동작한다.
+frontend = [
+    "streamlit>=1.36.0",     # frontend: 웹 UI (st.navigation은 1.36+)
+    "httpx>=0.27.0",         # frontend: api_client HTTP 호출
+]
 # rag_core parsing 무거운 의존성 (HWP/PDF 추출). 필요 시: pip install -e ".[parsing]"
 # pyhwp는 0.1b15 핀 (구버전이라 상위 버전 호환 불확실 — Python 3.12 빌드는 확인됨).
 parsing = [
@@ -54,17 +60,27 @@ target-version = "py312"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# frontend/는 설치 패키지가 아니라 Streamlit 실행 디렉토리 — 테스트에서
+# 런타임과 동일하게 `from api_client import ...`로 import할 수 있게 경로 추가.
+pythonpath = ["frontend"]
 
 # src 레이아웃: src/ 하위의 패키지(api, rag_core)를 최상위 import 이름으로 노출.
 # 따라서 코드는 `import rag_core` / `from api import ...` 형태로 사용한다 (src. 접두어 없음).
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# Pylance/pyright(IDE 정적 분석) 경로 설정.
+# pytest의 pythonpath·mypy의 mypy_path는 IDE가 읽지 않으므로 여기서 별도 지정 —
+# 없으면 tests/frontend 등에서 `from api_client import ...`가 unresolved로 표시된다.
+[tool.pyright]
+extraPaths = ["src", "frontend"]
+
 [tool.mypy]
 python_version = "3.12"
-files = ["src/rag_core", "src/api"]
+files = ["src/rag_core", "src/api", "frontend"]
 
-mypy_path = "src"
+# frontend/는 패키지가 아닌 최상위 모듈 집합(api_client 등)이라 경로에 포함
+mypy_path = ["src", "frontend"]
 
 ignore_missing_imports = false   # 내부 코드엔 엄격하게
 warn_unused_ignores = true
@@ -88,6 +104,8 @@ module = [
     "rank_bm25.*",
     "kiwipiepy.*",
     "numpy.*",
+    # frontend extra (CI lint job엔 미설치 → 임포트 해석 불가하므로 무시)
+    "streamlit.*",
     # parsing extra (CI lint job엔 미설치 → 임포트 해석 불가하므로 무시)
     "hwp5.*",
     "docx.*",
