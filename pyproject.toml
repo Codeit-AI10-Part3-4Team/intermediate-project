@@ -17,6 +17,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     "openai>=1.0.0",
+    "requests>=2.31.0",              # rag_core/llm·orchestration: Ollama HTTP 호출
 ]
 
 # 개발 및 테스트 추가 의존성
@@ -38,6 +39,14 @@ retrieval = [
     "langchain-huggingface>=0.1.0",   # embedding: HuggingFaceEmbeddings (bge-m3)
     "langchain-openai>=0.1.0",        # embedding: OpenAIEmbeddings
     "sentence-transformers>=2.2.0",   # retrieval: CrossEncoder 리랭커
+    "rank-bm25>=0.2.2",               # retrieval: BM25 하이브리드(RRF) 검색
+    "kiwipiepy>=0.18.0",              # retrieval: 한국어 형태소 토크나이저 (BM25용)
+    "numpy>=1.26.0",                  # retrieval: RRF 스코어 계산
+]
+# LangGraph Orchestrator(use_mock=False 실경로) 의존성. retrieval도 함께 필요:
+#   pip install -e ".[retrieval,orchestration]"
+orchestration = [
+    "langgraph>=1.0.0",
 ]
 # 프론트엔드(Streamlit UI) 의존성. 필요 시: pip install -e ".[frontend]"
 # httpx는 dev에도 있어 CI(frontend 미설치)에서도 api_client 테스트·타입체크가 동작한다.
