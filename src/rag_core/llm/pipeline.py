@@ -332,7 +332,7 @@ _COMPARISON_CONJUNCTION_PATTERN = re.compile(
 
 
 def split_comparison_entities(question: str) -> list:
-    """ "A와 B의 차이점은?"류 질문에서 A, B를 분리해 서브쿼리를 만듭니다.
+    """"A와 B의 차이점은?"류 질문에서 A, B를 분리해 서브쿼리를 만듭니다.
 
     두 대상을 한 문장으로 검색하면 한쪽 문서의 청크가 검색 결과 상위권을
     독점해서 다른 쪽 문서가 top-k 밖으로 밀려나는 현상이 확인됐습니다(Q061:
@@ -721,7 +721,9 @@ def strip_ungrounded_duration_mention(rewritten: str, last_answer: str) -> str:
         m in last_answer for m in duration_markers
     ):
         sentences = re.split(r"(?<=[.!?])\s+|\n+", rewritten)
-        filtered = [s for s in sentences if not any(m in s for m in duration_markers)]
+        filtered = [
+            s for s in sentences if not any(m in s for m in duration_markers)
+        ]
         result = " ".join(s.strip() for s in filtered if s.strip())
         rewritten = re.sub(r"\s{2,}", " ", result).strip()
 
@@ -899,19 +901,7 @@ def remove_unasked_contact_info(answer: str, question: str) -> str:
             continue
         if re.search(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", line):
             continue
-        if any(
-            k in line
-            for k in [
-                "담당",
-                "담당자",
-                "주무관",
-                "전화번호",
-                "이메일",
-                "연락처",
-                "직접 문의",
-                "문의하",
-            ]
-        ):
+        if any(k in line for k in ["담당", "담당자", "주무관", "전화번호", "이메일", "연락처", "직접 문의", "문의하"]):
             continue
         filtered_lines.append(line)
 
@@ -984,11 +974,36 @@ def suppress_duration_estimation(answer: str) -> str:
 
     sentences = re.split(r"(?<=[.!?])\s+|\n+", answer)
     filtered = [
-        s for s in sentences if not any(marker in s for marker in duration_estimation_markers)
+        s for s in sentences
+        if not any(marker in s for marker in duration_estimation_markers)
     ]
     result = " ".join(s.strip() for s in filtered if s.strip())
     result = re.sub(r"\s{2,}", " ", result)
     return result.strip()
+
+
+_BROKEN_BOLD_REPEAT_PATTERN = re.compile(r"(\*\*\s*){2,}")
+
+
+def clean_broken_markdown_bold(text: str) -> str:
+    """중첩된 목록 생성 시 깨지는 마크다운 강조(**)를 정리합니다.
+
+    exaone이 깊게 중첩된 목록(대분류 안에 소분류, 그 안에 또 하위 항목)을
+    줄바꿈 없이 한 문단으로 생성할 때, "** **", "** ** **"처럼 강조 표시의
+    열림/닫힘 상태를 놓치는 현상이 관찰됐습니다(Q033, Q074). 내용 자체(항목
+    이름, 순서, 개수)는 정확하고 순수하게 표시(서식)만 깨지는 문제입니다.
+
+    1) "** **"처럼 반복되는 빈 강조를 "**" 하나로 정리합니다.
+    2) 정리 후에도 "**" 개수가 홀수(짝이 안 맞음)면, 어느 부분이 진짜
+       강조였는지 텍스트만으로는 판단할 수 없으므로, 깨진 별표가 그대로
+       노출되는 것보다 안전하게 "**"를 전부 제거합니다(굵게 표시 스타일은
+       잃지만 내용은 그대로 보존됩니다).
+    """
+    text = str(text)
+    text = _BROKEN_BOLD_REPEAT_PATTERN.sub("**", text)
+    if text.count("**") % 2 != 0:
+        text = text.replace("**", "")
+    return text.strip()
 
 
 def postprocess_model_answer(answer: str, question: str) -> str:
@@ -996,6 +1011,7 @@ def postprocess_model_answer(answer: str, question: str) -> str:
     answer = remove_unasked_contact_info(answer, question)
     answer = enforce_insufficient_answer_policy(answer, question)
     answer = suppress_duration_estimation(answer)
+    answer = clean_broken_markdown_bold(answer)
     return answer
 
 
