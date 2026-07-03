@@ -2,12 +2,14 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from api.config import Settings
+from api.logging_config import setup_logging
 from api.mock import MockRetriever, MockLLM, MockOrchestrator, MockSuitabilityChecker
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = Settings()
+    setup_logging(level=settings.log_level, log_file=settings.log_file)
 
     if settings.use_mock:
         app.state.retriever = MockRetriever()
