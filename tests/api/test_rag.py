@@ -73,3 +73,31 @@ def test_openapi_exposes_rag_path():
         schema = client.get("/openapi.json").json()
     assert "/rag" in schema["paths"]
     assert "post" in schema["paths"]["/rag"]
+
+
+def test_rag_session_id_round_trips_via_usage(client):
+    # 멀티턴 계약: 요청 session_id → 응답 usage.thread_id로 돌아온다.
+    resp = client.post("/rag", json={"query": "q", "session_id": "sess-42"})
+
+    assert resp.status_code == 200
+    assert resp.json()["usage"]["thread_id"] == "sess-42"
+
+
+def test_rag_works_without_session_fields(client):
+    # session_id/company_info는 선택 — 기존 클라이언트 요청은 그대로 동작해야 한다.
+    resp = client.post("/rag", json={"query": "q", "top_k": 1})
+
+    assert resp.status_code == 200
+    assert resp.json()["usage"]["thread_id"]  # 구현이 세션을 하나 만들어 돌려준다
+
+
+def test_rag_accepts_company_info(client):
+    resp = client.post("/rag", json={"query": "입찰 적합도?", "company_info": "중소 SI, 실적 3건"})
+
+    assert resp.status_code == 200
+
+
+def test_rag_rejects_overlong_session_id(client):
+    resp = client.post("/rag", json={"query": "q", "session_id": "x" * 65})
+
+    assert resp.status_code == 422
