@@ -80,7 +80,7 @@ RAG 파이프라인
 ```
 intermediate-project/
 ├── data/                  # 데이터 (실제 파일은 .gitignore 처리)
-│   └── chroma_db/         # Vector DB (공유 드라이브에서 다운로드)
+│   └── vector_db/         # Vector DB (공유 드라이브에서 다운로드)
 ├── docs/                  # 기획·의사결정 문서
 ├── eval/                  # 평가 자산
 │   ├── golden_dataset/    # 골든 데이터셋 (123개 QA)

@@ -1,4 +1,8 @@
+import torch
+
+
 def load_embedding_model(name: str):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     if name == "text-embedding-3-small":
         from langchain_openai import OpenAIEmbeddings
 
@@ -8,7 +12,7 @@ def load_embedding_model(name: str):
 
         return HuggingFaceEmbeddings(
             model_name="BAAI/bge-m3",
-            model_kwargs={"device": "cuda"},
+            model_kwargs={"device": device},
             encode_kwargs={"normalize_embeddings": True},
         )
     else:
