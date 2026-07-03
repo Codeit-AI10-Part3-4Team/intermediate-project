@@ -332,7 +332,7 @@ _COMPARISON_CONJUNCTION_PATTERN = re.compile(
 
 
 def split_comparison_entities(question: str) -> list:
-    """"A와 B의 차이점은?"류 질문에서 A, B를 분리해 서브쿼리를 만듭니다.
+    """ "A와 B의 차이점은?"류 질문에서 A, B를 분리해 서브쿼리를 만듭니다.
 
     두 대상을 한 문장으로 검색하면 한쪽 문서의 청크가 검색 결과 상위권을
     독점해서 다른 쪽 문서가 top-k 밖으로 밀려나는 현상이 확인됐습니다(Q061:
@@ -721,9 +721,7 @@ def strip_ungrounded_duration_mention(rewritten: str, last_answer: str) -> str:
         m in last_answer for m in duration_markers
     ):
         sentences = re.split(r"(?<=[.!?])\s+|\n+", rewritten)
-        filtered = [
-            s for s in sentences if not any(m in s for m in duration_markers)
-        ]
+        filtered = [s for s in sentences if not any(m in s for m in duration_markers)]
         result = " ".join(s.strip() for s in filtered if s.strip())
         rewritten = re.sub(r"\s{2,}", " ", result).strip()
 
@@ -901,7 +899,19 @@ def remove_unasked_contact_info(answer: str, question: str) -> str:
             continue
         if re.search(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", line):
             continue
-        if any(k in line for k in ["담당", "담당자", "주무관", "전화번호", "이메일", "연락처", "직접 문의", "문의하"]):
+        if any(
+            k in line
+            for k in [
+                "담당",
+                "담당자",
+                "주무관",
+                "전화번호",
+                "이메일",
+                "연락처",
+                "직접 문의",
+                "문의하",
+            ]
+        ):
             continue
         filtered_lines.append(line)
 
@@ -974,8 +984,7 @@ def suppress_duration_estimation(answer: str) -> str:
 
     sentences = re.split(r"(?<=[.!?])\s+|\n+", answer)
     filtered = [
-        s for s in sentences
-        if not any(marker in s for marker in duration_estimation_markers)
+        s for s in sentences if not any(marker in s for marker in duration_estimation_markers)
     ]
     result = " ".join(s.strip() for s in filtered if s.strip())
     result = re.sub(r"\s{2,}", " ", result)
