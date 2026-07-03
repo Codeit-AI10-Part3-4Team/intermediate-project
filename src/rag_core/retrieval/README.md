@@ -10,6 +10,13 @@
 - 입력: 사용자 질의 텍스트, 검색 대상 임베딩 인덱스(또는 벡터 컬렉션)
 - 출력: 관련도 순으로 정렬된 청크 리스트(+ 유사도 점수)
 
+## 현재 구현
+- `retriever.py` — **하이브리드 검색**: Chroma 벡터 유사도 + BM25(Kiwi 형태소 토큰화)를
+  RRF(Reciprocal Rank Fusion)로 결합해 `list[RetrievedChunk]` 반환.
+- Chroma 경로는 하드코딩하지 않고 호출부에서 주입합니다 — 서비스 경로에서는
+  `api/config.py`의 `Settings.chroma_dir`(`.env`의 `APP_CHROMA_DIR`)가 단일 원천.
+- 무거운 의존성은 `[retrieval]` extra: `pip install -e ".[retrieval]"`.
+
 ## 산출물 연계
 - 다음 단계인 `prompts/`(지우님)가 이 모듈의 출력을 context로 받아 LLM 프롬프트를 구성합니다.
 - "Retrieval Pipeline 초안"이 이 모듈과 `chunking/`, `embedding/`을 통합한 첫 결과물입니다.

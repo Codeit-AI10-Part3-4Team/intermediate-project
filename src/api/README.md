@@ -6,10 +6,14 @@ FastAPI 기반 서버 코드, 라우팅, 업로드 API를 보관합니다.
 ## 담당
 호정님
 
-## 현재 작업
-- GitHub 레포/브랜치 전략 수립 (인프라 측면)
-- FastAPI 서버 구축 ✅ (`POST /rag`, `POST /upload` — 현재 `use_mock=True` 목업 경로)
-- 업로드 API 구현 ✅ (라우터·검증·transient 처리. 실제 적합성 판정은 예정)
+## 현재 상태
+- FastAPI 서버 구축 ✅ — `POST /rag`(질의, `session_id`로 멀티턴·`company_info`로 입찰분석 지원),
+  `POST /upload`(적합성 검사 — 라우터·검증·transient 처리 구현, **판정은 아직 Mock**)
+- 실제 파이프라인 배선 ✅ — `APP_USE_MOCK=false` 시 lifespan이 `LangGraphOrchestrator`를
+  주입 (Chroma 경로는 `Settings.chroma_dir`). 절차는 `deploy/README.md`(러너북) 참고.
+- 관측성 ✅ — 요청마다 `X-Request-ID`, 도메인 예외 → 502/504/500 매핑, 파일 로그 옵션
+  (아래 "로깅 / 오류 추적" 섹션)
+- 남은 것: 실제 `SuitabilityChecker` 구현·배선
 
 ## 구조 가이드
 ```

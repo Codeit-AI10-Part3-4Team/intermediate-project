@@ -6,6 +6,19 @@
 
 ## 스크립트 목록
 
+### `deploy_vm.sh` — VM 배포 (main 반영 → 의존성/유닛 갱신 → 재시작 → 스모크)
+PR 머지 후 GCP VM의 상시 서비스(`rfp-api`/`rfp-frontend`)에 반영합니다.
+절차·전제조건·트러블슈팅은 [`deploy/README.md`](../deploy/README.md)(러너북) 참고.
+
+### `verify_editable_install.py` — editable 설치 검증
+`pip install -e .` 후 `import rag_core`/`from api import ...`가 정상 동작하는지 확인합니다.
+
+### `parity_check_parsing.py` — 파서 이전 무결성 검증
+노트북 → `src/rag_core/parsing` 이전이 동일 출력을 내는지 비교합니다
+(`docs/파서_parity_검증_보고서.md` 참고).
+
+### `convert_notebooks.py` — 노트북 → 스크립트 변환 유틸
+
 ### `setup-github.sh` — 레포 하드닝 (브랜치 보호 + Merge 전략 + 라벨)
 `main` 브랜치 보호 규칙, Merge 전략, 라벨을 한 번에 적용합니다.
 

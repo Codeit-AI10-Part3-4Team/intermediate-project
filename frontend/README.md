@@ -30,7 +30,7 @@ streamlit run app.py
 
 | 변수 | 기본값 | 설명 |
 |---|---|---|
-| `RAG_API_BASE_URL` | `http://127.0.0.1:8000` | 백엔드 API 주소. GCP VM에서는 8000이 JupyterHub 점유라 `http://127.0.0.1:8080` 등으로 지정 |
+| `RAG_API_BASE_URL` | `http://127.0.0.1:8000` | 백엔드 API 주소. GCP VM 상시 서비스는 `http://127.0.0.1:8090` (`deploy/systemd/rfp-frontend.service` 참고 — 8000·8001·8081은 JupyterHub, 8080은 실험용 예약) |
 | `RAG_API_TIMEOUT_SECONDS` | `60` | API 응답 대기 한도 (LLM 생성이 느릴 수 있어 여유 있게) |
 
 ## GCP VM 배포 메모
