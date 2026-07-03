@@ -10,6 +10,14 @@
 - 입력: `prompts/`가 생성한 최종 프롬프트
 - 출력: LLM 응답 텍스트(요약 또는 QA 답변) + 메타데이터(토큰 사용량, 응답 시간 등 필요 시)
 
+## 현재 구현
+- `pipeline.py` — Ollama(`exaone3.5:7.8b`) 호출·후처리·가드레일 함수 모음.
+  엔드포인트는 `OLLAMA_BASE_URL` 환경 변수(기본 `http://127.0.0.1:11434`).
+- 호출 실패는 `rag_core/exceptions.py`의 도메인 예외(`LLMConnectionError`/`LLMTimeoutError`)로
+  변환해 던지며, `api/errors.py`가 502/504로 번역합니다.
+- Ollama 장애 시 OpenAI(gpt-4o-mini) fallback은 `orchestration/langgraph_router.py`의
+  `call_llm_with_fallback`에 있습니다 (`OPENAI_API_KEY` 필요).
+
 ## 산출물 연계
 - 이 모듈의 출력이 `src/api/routers/upload.py` 등 API 레이어를 통해 최종 사용자에게 반환됩니다.
 - "Prompt Template v1"과 함께 이 모듈이 첫 end-to-end 응답 생성 경로를 완성합니다.

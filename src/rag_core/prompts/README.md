@@ -14,8 +14,10 @@
 ```
 prompts/
 ├── templates/
-│   └── prompt_template_v1.txt   # 프롬프트 템플릿 원본
-└── builder.py                    # 템플릿 + context를 조합하는 로직
+│   ├── prompt_template_v1.txt        # 단일 문서 QA 템플릿
+│   └── prompt_template_multi_v1.txt  # 다중 문서(비교·요약) 템플릿
+├── builder.py                    # 템플릿 로드 + context 조합 로직
+└── prompt.py                     # 템플릿을 상수로 re-export (orchestration이 사용)
 ```
 
 ## 산출물 연계

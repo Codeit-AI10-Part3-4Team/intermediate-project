@@ -95,12 +95,17 @@ intermediate-project/
 │   └── eval/              # 평가 실험
 ├── src/                   # 공유 Python 모듈
 │   ├── rag_core/
+│   │   ├── parsing/       # HWP/PDF 파서 (RfpParser)
 │   │   ├── chunking/      # Chunker
-│   │   ├── embedding/     # Embedder
-│   │   ├── retrieval/     # ChromaRetriever
+│   │   ├── embedding/     # Embedder (bge-m3)
+│   │   ├── retrieval/     # 하이브리드 검색 (Chroma + BM25/RRF)
+│   │   ├── prompts/       # 프롬프트 템플릿 + 빌더
+│   │   ├── llm/           # Ollama(exaone3.5:7.8b) 호출·후처리
+│   │   ├── orchestration/ # LangGraph Orchestrator (use_mock=False 실경로)
 │   │   ├── schemas.py     # 데이터 스키마
-│   │   └── interfaces.py  # 인터페이스 정의
-│   └── api/               # FastAPI 서버
+│   │   ├── interfaces.py  # 인터페이스 정의 (Protocol)
+│   │   └── exceptions.py  # 도메인 예외 (502/504 매핑의 원천)
+│   └── api/               # FastAPI 서버 (/rag, /upload, 요청 추적 로깅)
 ├── scripts/               # 실행 스크립트
 ├── tests/                 # 테스트 코드
 └── .github/               # PR 템플릿, Issue 템플릿

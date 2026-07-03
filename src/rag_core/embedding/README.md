@@ -10,6 +10,11 @@
 - 입력: 청크 리스트(`chunking/`의 출력)
 - 출력: 청크별 임베딩 벡터(float32 배열) + 원본 청크 메타데이터
 
+## 현재 구현
+- `embedder.py` — `load_embedding_model(name)`: 기본 `bge-m3`(HuggingFace),
+  `text-embedding-3-small`(OpenAI)도 선택 가능. 디바이스는 cuda/cpu 자동 감지.
+- 무거운 의존성은 `[retrieval]` extra에 포함.
+
 ## 산출물 연계
 - 다음 단계인 `retrieval/`(희원님)이 이 모듈의 출력을 입력으로 받습니다.
 - `notebooks/retrieval/`에서 비교한 임베딩 모델 후보 중 채택된 모델만 이곳에 구현됩니다.
