@@ -34,6 +34,15 @@ def test_docs_page_references_relative_openapi_url(client):
     assert "'/openapi.json'" not in html
 
 
+def test_docs_page_sends_xsrf_header_for_jupyterhub_proxy(client):
+    html = client.get("/docs").text
+
+    # JupyterHub 5는 프록시 경유 POST에 XSRF 토큰을 요구한다 —
+    # Swagger 요청 인터셉터가 _xsrf 쿠키를 X-XSRFToken 헤더로 실어야 한다.
+    assert "X-XSRFToken" in html
+    assert "requestInterceptor" in html
+
+
 def test_openapi_spec_contains_router_paths(client):
     resp = client.get("/openapi.json")
 
