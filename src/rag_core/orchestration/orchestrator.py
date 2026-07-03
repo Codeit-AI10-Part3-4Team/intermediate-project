@@ -63,8 +63,9 @@ class LangGraphOrchestrator:
         Returns:
             RagResponse(answer, sources, usage)
         """
+        # session_id 없으면 stateless (메모리 누수 방지)
         thread_id = session_id or str(uuid.uuid4())
-        config = {"configurable": {"thread_id": thread_id}}
+        config = {"configurable": {"thread_id": thread_id}} if session_id else {}
 
         state_input: dict = {
             "question": query,
@@ -90,8 +91,8 @@ class LangGraphOrchestrator:
                     metadata=src.get("metadata", {}),
                 )
                 sources.append(RetrievedChunk(chunk=chunk, score=src.get("score", 0.0)))
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[Orchestrator] source 변환 오류 (skip): {e}")
 
         return RagResponse(
             answer=answer,

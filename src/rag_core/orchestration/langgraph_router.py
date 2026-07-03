@@ -27,21 +27,19 @@ from __future__ import annotations
 
 import collections
 import os
-import sys
 from typing import Any, Literal, Optional, TypedDict
 
 import requests
 from langgraph.checkpoint.memory import MemorySaver  # type: ignore[import-not-found]
 from langgraph.graph import END, StateGraph  # type: ignore[import-not-found]
 
-sys.path.insert(0, "src")
 from rag_core.retrieval.retriever import Retriever
 from rag_core.llm.pipeline import (
     ask_exaone_from_docs,
     is_score_prediction_question,
     score_prediction_guardrail_answer,
 )
-from rag_core.prompts.prompt import exaone_rag_qa_prompt, exaone_multi_doc_prompt  # type: ignore[import-untyped]
+from rag_core.prompts.builder import build_prompt as _builder_build_prompt
 
 
 # ──────────────────────────────────────────────
@@ -96,6 +94,8 @@ class RagState(TypedDict, total=False):
     style_prompt: str  # 문체 변환 유도 문구
     history: list[dict]
     error: Optional[str]
+    # 업로드 임시 DB 전용
+    upload_collection: Optional[str]  # 업로드된 임시 ChromaDB collection 이름
     # 입찰 적합도 분석 전용
     company_info: Optional[str]  # 사용자 입력 회사 정보 (없으면 A만 실행)
     bid_analysis: Optional[dict]  # 분석 결과 (항목별 점수, 종합 점수, 리스크 등)
@@ -163,7 +163,7 @@ def classify_question_keyword(question: str, has_history: bool) -> QuestionType:
 
 
 # ──────────────────────────────────────────────
-# LLM 호출 (Ollama → OpenAI fallback)
+# LLM 호출 (Ollama)
 # ──────────────────────────────────────────────
 
 
@@ -182,23 +182,12 @@ def call_ollama(prompt: str, model: str = OLLAMA_MODEL) -> str:
 
 
 def call_llm_with_fallback(prompt: str) -> str:
-    """Ollama 1차 시도 → 실패 시 OpenAI fallback."""
+    """Ollama 호출. 실패 시 RuntimeError 발생 (OpenAI fallback 제거 — RFP 외부 유출 방지)."""
     try:
         return call_ollama(prompt)
     except RuntimeError as e:
-        print(f"[LLM] Ollama 실패 → OpenAI fallback: {e}")
-        try:
-            from openai import OpenAI
-
-            client = OpenAI()
-            resp = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                timeout=60,
-            )
-            return resp.choices[0].message.content.strip()
-        except Exception as e2:
-            return f"죄송합니다. 현재 답변 생성에 실패했습니다. ({e2})"
+        print(f"[LLM] Ollama 호출 실패: {e}")
+        raise
 
 
 # ──────────────────────────────────────────────
@@ -207,15 +196,24 @@ def call_llm_with_fallback(prompt: str) -> str:
 
 
 def build_prompt(question: str, chunks: list[str], question_type: str) -> str:
-    """지우님 prompt.py 최종본 import 버전."""
-    context = "\n\n".join(chunks) if chunks else "검색된 문서가 없습니다."
+    """지우님 builder.py 기반 프롬프트 구성."""
+    from rag_core.llm.pipeline import format_rag_context, build_doc_metadata_table
 
-    if question_type in ("multi_doc_compare", "multi_doc_summary"):
-        template: str = str(exaone_multi_doc_prompt)
-    else:
-        template = str(exaone_rag_qa_prompt)
+    class _SimpleDoc:
+        def __init__(self, text: str) -> None:
+            self.page_content = text
+            self.metadata: dict[str, Any] = {}
 
-    return template.format(context=context, question=question)
+    docs = [_SimpleDoc(c) for c in chunks]
+    context = format_rag_context(docs)
+    doc_list = build_doc_metadata_table(docs)
+    is_multi = question_type in ("multi_doc_compare", "multi_doc_summary")
+    return _builder_build_prompt(
+        question=question,
+        context=context,
+        doc_list=doc_list,
+        is_multi_doc=is_multi,
+    )
 
 
 # ──────────────────────────────────────────────
@@ -233,6 +231,45 @@ def get_retriever(chroma_dir: str = CHROMA_DIR_DEFAULT) -> Retriever:
         _retriever.load()
         print("[Router] Retriever 초기화 완료")
     return _retriever
+
+
+# ──────────────────────────────────────────────
+# 업로드 임시 Retriever 관리
+# ──────────────────────────────────────────────
+
+_upload_retrievers: dict[str, Retriever] = {}
+
+
+def get_upload_retriever(collection_name: str) -> Optional[Retriever]:
+    """업로드된 임시 ChromaDB collection으로 Retriever 반환."""
+    return _upload_retrievers.get(collection_name)
+
+
+def register_upload_retriever(collection_name: str, retriever: Retriever) -> None:
+    """임시 Retriever 등록 (업로드 후 호정님 upload.py에서 호출)."""
+    _upload_retrievers[collection_name] = retriever
+    print(f"[Router] 임시 Retriever 등록: {collection_name}")
+
+
+def release_upload_retriever(collection_name: str) -> None:
+    """임시 Retriever 해제 (세션 종료 시)."""
+    if collection_name in _upload_retrievers:
+        del _upload_retrievers[collection_name]
+        print(f"[Router] 임시 Retriever 해제: {collection_name}")
+
+
+def _get_active_retriever(state: RagState) -> Retriever:
+    """
+    업로드 임시 DB 우선 사용, 없으면 기존 vector_db 사용.
+    upload_collection이 state에 있으면 임시 Retriever 반환.
+    """
+    upload_collection = state.get("upload_collection")
+    if upload_collection:
+        upload_retriever = get_upload_retriever(upload_collection)
+        if upload_retriever:
+            print(f"[Router] 임시 DB 사용: {upload_collection}")
+            return upload_retriever
+    return get_retriever()
 
 
 # ──────────────────────────────────────────────
@@ -261,13 +298,21 @@ def route_decision(state: RagState) -> str:
 
 
 def single_doc_fact_node(state: RagState) -> dict:
-    """단일문서_사실추출: Hybrid RRF 검색 top_k=10."""
+    """단일문서_사실추출: Hybrid RRF 검색 top_k=10. 업로드 임시 DB 우선 사용."""
     question = state.get("rewritten_question", state["question"])
     try:
-        retriever = get_retriever()
+        retriever = _get_active_retriever(state)
         retrieved = retriever.retrieve(question, top_k=TOP_K_DEFAULT)
         chunks = [r.chunk.text for r in retrieved]
-        sources = [{"doc_id": r.chunk.doc_id, "score": r.score} for r in retrieved]
+        sources = [
+            {
+                "doc_id": r.chunk.doc_id,
+                "score": r.score,
+                "metadata": r.chunk.metadata,
+                "text": r.chunk.text,
+            }
+            for r in retrieved
+        ]
         return {"retrieved_chunks": chunks, "retrieved_sources": sources}
     except Exception as e:
         print(f"[Router] Retrieval 오류: {e}")
@@ -275,13 +320,21 @@ def single_doc_fact_node(state: RagState) -> dict:
 
 
 def single_doc_requirement_node(state: RagState) -> dict:
-    """단일문서_세부요구사항: top_k=15로 더 넓게 검색."""
+    """단일문서_세부요구사항: top_k=15로 더 넓게 검색. 업로드 임시 DB 우선 사용."""
     question = state.get("rewritten_question", state["question"])
     try:
-        retriever = get_retriever()
+        retriever = _get_active_retriever(state)
         retrieved = retriever.retrieve(question, top_k=TOP_K_REQUIREMENT)
         chunks = [r.chunk.text for r in retrieved]
-        sources = [{"doc_id": r.chunk.doc_id, "score": r.score} for r in retrieved]
+        sources = [
+            {
+                "doc_id": r.chunk.doc_id,
+                "score": r.score,
+                "metadata": r.chunk.metadata,
+                "text": r.chunk.text,
+            }
+            for r in retrieved
+        ]
         return {"retrieved_chunks": chunks, "retrieved_sources": sources}
     except Exception as e:
         print(f"[Router] Retrieval 오류: {e}")
@@ -307,11 +360,11 @@ def generate_sub_queries(question: str) -> list[str]:
 
 
 def multi_doc_compare_node(state: RagState) -> dict:
-    """다중문서_비교: 쿼리 분리 후 RRF 병합 검색."""
+    """다중문서_비교: 쿼리 분리 후 RRF 병합 검색. 업로드 임시 DB 우선 사용."""
     question = state.get("rewritten_question", state["question"])
     try:
         sub_queries = generate_sub_queries(question)
-        retriever = get_retriever()
+        retriever = _get_active_retriever(state)
         all_retrieved_results = []
         for query in sub_queries:
             retrieved = retriever.retrieve(query, top_k=TOP_K_DEFAULT)
@@ -397,7 +450,7 @@ def bid_analysis_node(state: RagState) -> dict:
 
     # 1단계: RFP 문서 검색 (요구사항 섹션 중심으로 더 넓게)
     try:
-        retriever = get_retriever()
+        retriever = _get_active_retriever(state)
         retrieved = retriever.retrieve(question, top_k=15)
         chunks = [r.chunk.text for r in retrieved]
     except Exception as e:
@@ -575,9 +628,10 @@ def rewrite_node(state: RagState) -> dict:
     """
     문체 변환 노드:
     사용자가 "공문서 형식으로 변환해줘" 등 요청 시
-    history의 마지막 답변을 지정한 문체로 변환.
-    지우님 프롬프트 템플릿 수령 후 교체 예정.
+    history의 마지막 답변을 지우님 .txt 템플릿으로 변환.
     """
+    from pathlib import Path
+
     question = state.get("question", "")
     raw_history = state.get("history", [])
     history: list[dict[str, Any]] = list(raw_history) if raw_history else []
@@ -595,36 +649,24 @@ def rewrite_node(state: RagState) -> dict:
             "answer": "변환할 이전 답변이 없습니다.",
         }
 
-    # 변환 스타일 감지
+    # 변환 스타일 감지 → 템플릿 파일 선택
+    templates_dir = Path(__file__).parent.parent / "prompts" / "templates"
     if any(kw in question for kw in ["사업제안서", "제안서"]):
-        style = "사업제안서"
-        style_desc = "사업제안서 형식 (목적, 추진 배경, 기대효과 구조)"
+        template_path = templates_dir / "prompt_template_rewrite_사업제안서_v1.txt"
     elif any(kw in question for kw in ["보고서", "보고"]):
-        style = "보고서"
-        style_desc = "보고서 형식 (제목, 개요, 세부내용, 결론 구조)"
+        template_path = templates_dir / "prompt_template_rewrite_보고서_v1.txt"
     else:
-        style = "공문서"
-        style_desc = "공문서 형식 (제목, 수신, 발신, 내용, 끝 구조)"
-
-    # 프롬프트 (지우님 템플릿 수령 전 임시)
-    prompt = f"""당신은 공공기관 문서 작성 전문가입니다.
-아래 [원본 내용]을 {style_desc}으로 변환하세요.
-
-[변환 규칙]
-1. {style} 형식에 맞는 구조를 갖추세요.
-2. 내용은 원본과 동일하게 유지하세요. 추가하거나 빼지 마세요.
-3. 한국어 공식 문체로 작성하세요.
-4. 수치/금액/날짜는 원본 그대로 유지하세요.
-
-[원본 내용]
-{last_answer}
-
-[{style} 형식으로 변환]"""
+        template_path = templates_dir / "prompt_template_rewrite_공문서_v1.txt"
 
     try:
-        import requests as req
+        template = template_path.read_text(encoding="utf-8")
+        prompt = template.format(last_answer=last_answer)
+    except Exception as e:
+        print(f"[Rewrite] 템플릿 로드 오류: {e}")
+        prompt = f"아래 내용을 공문서 형식으로 변환하세요.\n\n{last_answer}"
 
-        resp = req.post(
+    try:
+        resp = requests.post(
             OLLAMA_URL,
             json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
             timeout=OLLAMA_TIMEOUT,
@@ -671,13 +713,17 @@ def generation_node(state: RagState) -> dict:
 
     is_multi = question_type in ("multi_doc_compare", "multi_doc_summary")
 
-    # retrieved_chunks(텍스트)를 DocAdapter로 변환
+    # retrieved_sources에서 metadata 포함 Doc 객체 생성
     class _SimpleDoc:
-        def __init__(self, text: str):
+        def __init__(self, text: str, metadata: dict):
             self.page_content = text
-            self.metadata: dict[str, Any] = {}
+            self.metadata = metadata
 
-    docs = [_SimpleDoc(c) for c in chunks]
+    sources = state.get("retrieved_sources", [])
+    if sources and "metadata" in sources[0]:
+        docs = [_SimpleDoc(s["text"], s["metadata"]) for s in sources]
+    else:
+        docs = [_SimpleDoc(c, {}) for c in chunks]
 
     try:
         result = ask_exaone_from_docs(question, docs, is_multi_doc=is_multi)
