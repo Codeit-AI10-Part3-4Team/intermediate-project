@@ -15,7 +15,11 @@
 prompts/
 ├── templates/
 │   ├── prompt_template_v1.txt        # 단일 문서 QA 템플릿
-│   └── prompt_template_multi_v1.txt  # 다중 문서(비교·요약) 템플릿
+│   ├── prompt_template_multi_v1.txt  # 다중 문서(비교·요약) 템플릿
+│   ├── prompt_template_followup_v1.txt (연관 질문 생성용)
+│   ├── prompt_template_rewrite_공문서_v1.txt
+│   ├── prompt_template_rewrite_사업제안서_v1.txt
+│   └── prompt_template_rewrite_보고서_v1.txt
 ├── builder.py                    # 템플릿 로드 + context 조합 로직
 └── prompt.py                     # 템플릿을 상수로 re-export (orchestration이 사용)
 ```
