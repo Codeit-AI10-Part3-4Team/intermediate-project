@@ -40,6 +40,7 @@ from rag_core.llm.pipeline import (
     score_prediction_guardrail_answer,
 )
 from rag_core.prompts.builder import build_prompt as _builder_build_prompt
+from rag_core.exceptions import LLMConnectionError, LLMTimeoutError
 
 
 # ──────────────────────────────────────────────
@@ -168,7 +169,7 @@ def classify_question_keyword(question: str, has_history: bool) -> QuestionType:
 
 
 def call_ollama(prompt: str, model: str = OLLAMA_MODEL) -> str:
-    """Ollama로 LLM 호출. 실패 시 RuntimeError 발생."""
+    """Ollama로 LLM 호출. 연결 실패/타임아웃을 도메인 예외로 구분해 던진다 (api 계층 502/504 매핑용)."""
     try:
         response = requests.post(
             OLLAMA_URL,
@@ -177,15 +178,23 @@ def call_ollama(prompt: str, model: str = OLLAMA_MODEL) -> str:
         )
         response.raise_for_status()
         return response.json()["response"].strip()
+    except requests.exceptions.ConnectionError as e:
+        raise LLMConnectionError(f"Ollama 연결 실패: {e}") from e
+    except requests.exceptions.Timeout as e:
+        raise LLMTimeoutError(f"Ollama 타임아웃: {e}") from e
     except Exception as e:
         raise RuntimeError(f"Ollama 호출 실패: {e}") from e
 
 
 def call_llm_with_fallback(prompt: str) -> str:
-    """Ollama 호출. 실패 시 RuntimeError 발생 (OpenAI fallback 제거 — RFP 외부 유출 방지)."""
+    """Ollama 호출 (OpenAI fallback 제거 — RFP 외부 유출 방지).
+
+    실패 시 도메인 예외(LLMConnectionError/LLMTimeoutError) 또는 RuntimeError를
+    그대로 전파해 api 계층에서 502/504/500으로 매핑되게 한다.
+    """
     try:
         return call_ollama(prompt)
-    except RuntimeError as e:
+    except (LLMConnectionError, LLMTimeoutError, RuntimeError) as e:
         print(f"[LLM] Ollama 호출 실패: {e}")
         raise
 
@@ -356,6 +365,7 @@ def generate_sub_queries(question: str) -> list[str]:
             return [question]
         return sub_queries + [question]
     except Exception:
+        # 서브쿼리 생성은 부가 기능 — LLM 장애 시에도 원본 질문으로 검색 계속 (의도적 폴백)
         return [question]
 
 
@@ -493,15 +503,8 @@ def bid_analysis_node(state: RagState) -> dict:
         full_prompt = rfp_analysis_prompt
 
     # LLM 호출
-    import requests as req
-
     try:
-        resp = req.post(
-            OLLAMA_URL,
-            json={"model": OLLAMA_MODEL, "prompt": full_prompt, "stream": False},
-            timeout=OLLAMA_TIMEOUT,
-        )
-        raw = resp.json().get("response", "").strip()
+        raw = call_ollama(full_prompt).strip()
 
         import re as _re
 
@@ -578,6 +581,9 @@ def bid_analysis_node(state: RagState) -> dict:
             "recommendation": recommendation,
         }
 
+    except (LLMConnectionError, LLMTimeoutError):
+        # LLM 연결/타임아웃은 삼키지 않고 전파 → api 계층에서 502/504로 매핑
+        raise
     except Exception as e:
         print(f"[BidAnalysis] LLM 오류: {e}")
         bid_result = {
@@ -666,12 +672,10 @@ def rewrite_node(state: RagState) -> dict:
         prompt = f"아래 내용을 공문서 형식으로 변환하세요.\n\n{last_answer}"
 
     try:
-        resp = requests.post(
-            OLLAMA_URL,
-            json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
-            timeout=OLLAMA_TIMEOUT,
-        )
-        converted = resp.json().get("response", "").strip()
+        converted = call_ollama(prompt).strip()
+    except (LLMConnectionError, LLMTimeoutError):
+        # LLM 연결/타임아웃은 삼키지 않고 전파 → api 계층에서 502/504로 매핑
+        raise
     except Exception as e:
         print(f"[Rewrite] LLM 오류: {e}")
         converted = "죄송합니다. 문체 변환 중 오류가 발생했습니다."
@@ -730,6 +734,9 @@ def generation_node(state: RagState) -> dict:
         answer = result.get("model_answer", "")
         related_questions = result.get("related_questions", "")
         style_prompt = result.get("style_prompt", "")
+    except (LLMConnectionError, LLMTimeoutError):
+        # LLM 연결/타임아웃은 삼키지 않고 전파 → api 계층에서 502/504로 매핑
+        raise
     except Exception as e:
         print(f"[Router] Generation 오류: {e}")
         answer = "죄송합니다. 현재 답변 생성에 실패했습니다."
