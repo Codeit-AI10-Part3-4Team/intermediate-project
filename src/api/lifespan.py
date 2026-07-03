@@ -17,10 +17,10 @@ async def lifespan(app: FastAPI):
         app.state.orchestrator = MockOrchestrator()
         app.state.suitability_checker = MockSuitabilityChecker()
     else:
-        # 실제 LangGraph Orchestrator 연결
+        # 실제 LangGraph Orchestrator 연결 — 경로는 Settings가 단일 원천 (주입)
         from rag_core.orchestration.orchestrator import LangGraphOrchestrator
 
-        app.state.orchestrator = LangGraphOrchestrator()
+        app.state.orchestrator = LangGraphOrchestrator(chroma_dir=settings.chroma_dir)
         app.state.suitability_checker = MockSuitabilityChecker()  # 추후 실제 구현으로 교체
 
     yield

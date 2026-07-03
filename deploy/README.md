@@ -50,17 +50,17 @@ sudo systemctl restart rfp-api
 ```
 
 > ⚠️ **`.env`로 전달되는 것은 `APP_` 접두어의 Settings 필드뿐입니다** (pydantic-settings).
-> `CHROMA_DIR`·`OLLAMA_BASE_URL`은 코드가 `os.getenv()`로 직접 읽으므로 `.env`에 적어도
-> 효과가 없습니다 — 기본값(`/data/vector_db/vector_db_v4`, `http://127.0.0.1:11434`)과 다르게
-> 쓰려면 `rfp-api.service`에 `Environment=CHROMA_DIR=...` 줄을 추가하고 유닛을 재배포하세요.
+> Chroma 경로는 Settings 통로로 배선돼 있어 **`.env`의 `APP_CHROMA_DIR`로 재정의**할 수
+> 있습니다(기본 `/data/vector_db/vector_db_v4`). 반면 `OLLAMA_URL`/`OLLAMA_BASE_URL` 등은
+> 아직 코드가 `os.getenv()`로 직접 읽으므로 `.env`가 아니라 `rfp-api.service`에
+> `Environment=...` 줄을 추가하고 유닛을 재배포해야 합니다(기본 `http://127.0.0.1:11434`).
 
 ### 전환 전 체크리스트
 
-1. **의존성**: 서비스 venv에 retrieval 계열 + `langgraph`가 있어야 합니다.
-   ⚠️ `langgraph`는 현재 `pyproject.toml` 어느 extra에도 선언돼 있지 않아 **수동 설치** 대상입니다.
+1. **의존성**: 서비스 venv에 retrieval·orchestration extra가 있어야 합니다.
    ```bash
    ~/ai/bin/python -c "import langgraph, chromadb, sentence_transformers; print('ok')"
-   # 실패 시: ~/ai/bin/python -m pip install -e ".[retrieval]" langgraph
+   # 실패 시: ~/ai/bin/python -m pip install -e ".[retrieval,orchestration]"
    ```
 2. **벡터 DB**: Chroma 경로 존재 확인 — `ls /data/vector_db/vector_db_v4`
 3. **Ollama**: `systemctl is-active ollama` + `ollama list`에 `exaone3.5:7.8b`
