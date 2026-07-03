@@ -35,7 +35,16 @@ class LLMClient(Protocol):
 
 @runtime_checkable
 class Orchestrator(Protocol):
-    def run(self, query: str, top_k: int) -> RagResponse: ...
+    # session_id: 멀티턴 세션 유지(구현이 thread로 매핑). company_info: 입찰 적합도 분석용.
+    # 키워드 전용으로 두어 구현체가 파라미터를 더 갖거나 순서가 달라도 호환되게 한다.
+    def run(
+        self,
+        query: str,
+        top_k: int,
+        *,
+        session_id: str | None = None,
+        company_info: str | None = None,
+    ) -> RagResponse: ...
 
 
 @runtime_checkable

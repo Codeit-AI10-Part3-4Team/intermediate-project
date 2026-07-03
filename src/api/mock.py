@@ -19,12 +19,20 @@ class MockLLM:
 
 
 class MockOrchestrator:
-    def run(self, query: str, top_k: int) -> RagResponse:
+    def run(
+        self,
+        query: str,
+        top_k: int,
+        *,
+        session_id: str | None = None,
+        company_info: str | None = None,
+    ) -> RagResponse:
         chunk = Chunk(chunk_id="mock_1", doc_id="mock_doc", text="(mock) 관련 근거 청크")
         return RagResponse(
             answer="(mock) LLM 응답",
             sources=[RetrievedChunk(chunk=chunk, score=0.99)][:top_k],
-            usage={},
+            # 실제 구현(LangGraphOrchestrator)처럼 usage.thread_id로 세션을 돌려준다.
+            usage={"thread_id": session_id or "mock-thread"},
         )
 
 

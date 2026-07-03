@@ -13,4 +13,9 @@ def query_rag(
     req: RagRequest, orchestrator: Orchestrator = Depends(get_orchestrator)
 ) -> RagResponse:
     # 요청 검증(스키마) -> rag_core 호출 -> 응답 반환, 비즈니스 로직 없음
-    return orchestrator.run(query=req.query, top_k=req.top_k)
+    return orchestrator.run(
+        query=req.query,
+        top_k=req.top_k,
+        session_id=req.session_id,
+        company_info=req.company_info,
+    )
