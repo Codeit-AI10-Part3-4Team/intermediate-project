@@ -327,7 +327,7 @@ def build_queries_for_row(row) -> list:
 
 
 _COMPARISON_CONJUNCTION_PATTERN = re.compile(
-    r"(.+?)(?:와|과)\s*(.+?)(?:의)?\s*(?:차이점|공통점|비교)"
+    r"(.+?)(?:와|과)(?!학)\s*(.+?)(?:의)?\s*(?:차이점|공통점|비교)"
 )
 
 
