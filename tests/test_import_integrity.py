@@ -9,6 +9,10 @@ import하지 않으므로 CI 기본 설치에서도 항상 돈다.
 해당 파일이 `# mypy: ignore-errors` 상태였고 테스트도 없어 CI가 잡지 못했다
 (use_mock=False 기동이 ModuleNotFoundError로 즉사하는 상태로 main에 존재).
 이 테스트는 그런 깨진 내부 import를 정적으로 차단한다.
+
+업데이트: rag_core.prompts.prompt는 하위 호환용 shim 모듈로 커밋되어
+더 이상 KNOWN_MISSING에 있을 필요가 없다 (exaone_rag_qa_prompt /
+exaone_multi_doc_prompt를 builder.py가 쓰는 템플릿 파일에서 다시 export).
 """
 
 import ast
@@ -17,11 +21,8 @@ from pathlib import Path
 SRC = Path(__file__).resolve().parent.parent / "src"
 INTERNAL_TOP_PACKAGES = {"rag_core", "api"}
 
-# 이미 main에 존재하는 깨진 import (이슈로 추적 중 — 지우님 prompt.py 커밋 대기).
-# ⚠️ 새 항목을 추가하지 마세요. 모듈이 커밋되면 여기서 제거해야 테스트가 통과합니다.
-KNOWN_MISSING = {
-    "rag_core.prompts.prompt",  # langgraph_router.py가 참조, 파일 미커밋 상태
-}
+# 이미 main에 존재하는 깨진 import를 여기 추적한다 (현재는 없음).
+KNOWN_MISSING: set[str] = set()
 
 
 def _iter_internal_imports(tree: ast.AST):
