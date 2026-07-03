@@ -12,7 +12,18 @@ from api.routers import rag, upload
 # path-rewriting proxies (e.g. JupyterHub's /user/<id>/proxy/8090 prefix).
 # We disable it and serve a custom /docs that loads the spec via a relative URL,
 # which resolves correctly both on direct access and behind the proxy.
-app = FastAPI(title="RFP RAG API", lifespan=lifespan, docs_url=None, redoc_url=None)
+#
+# servers "./": without it Swagger UI resolves the default server "/" against the
+# page ORIGIN, so Try it out posts to http://<host>/rag instead of the proxy
+# prefix. A relative server URL is resolved against where the spec was fetched
+# from — proxy: /user/<id>/proxy/8090/, direct: /.
+app = FastAPI(
+    title="RFP RAG API",
+    lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
+    servers=[{"url": "./"}],
+)
 app.add_middleware(RequestContextMiddleware)
 register_exception_handlers(app)
 app.include_router(rag.router)

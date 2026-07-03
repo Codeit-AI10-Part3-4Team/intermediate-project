@@ -52,3 +52,12 @@ def test_openapi_spec_contains_router_paths(client):
     assert "/upload" in paths
     # 커스텀 docs 라우트는 스펙에 노출하지 않는다.
     assert "/docs" not in paths
+
+
+def test_openapi_declares_relative_server(client):
+    spec = client.get("/openapi.json").json()
+
+    # servers가 없으면 Swagger UI가 기본 서버 "/"를 오리진 루트로 해석해
+    # Try it out이 프록시 프리픽스를 벗어난다 (호스트 루트로 POST → Hub 403).
+    # 상대 서버 "./"는 스펙을 받아온 위치 기준으로 해석된다.
+    assert spec.get("servers") == [{"url": "./"}]
