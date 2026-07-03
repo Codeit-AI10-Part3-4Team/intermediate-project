@@ -14,9 +14,12 @@ FastAPI 기반 서버 코드, 라우팅, 업로드 API를 보관합니다.
 ## 구조 가이드
 ```
 api/
-├── main.py            # FastAPI 앱 엔트리포인트 (lifespan + 라우터 등록)
-├── lifespan.py         # 시작 시 Settings 읽어 구현체를 app.state에 배선 (use_mock 전환)
+├── main.py            # FastAPI 앱 엔트리포인트 (lifespan + 미들웨어·핸들러·라우터 등록)
+├── lifespan.py         # 시작 시 Settings 읽어 로깅 설정 + 구현체를 app.state에 배선 (use_mock 전환)
 ├── config.py           # Settings (pydantic-settings, env_prefix=APP_)
+├── middleware.py        # 요청마다 X-Request-ID 부여 + 액세스 로그 (api.access)
+├── errors.py            # rag_core 도메인 예외 → HTTP 상태 코드 번역 (502/504/500)
+├── logging_config.py    # 로깅 설정 (request_id 필터, APP_LOG_FILE 파일 핸들러)
 ├── mock.py             # Mock 구현 (MockOrchestrator / MockSuitabilityChecker 등)
 ├── routers/
 │   ├── rag.py          # POST /rag  (질의 → Orchestrator.run)
@@ -24,6 +27,35 @@ api/
 ├── schemas.py           # HTTP 입출력 전용 DTO (RagRequest) + rag_core 응답 re-export
 └── dependencies.py      # app.state 구현체를 Depends로 주입 (타입은 rag_core Protocol)
 ```
+
+## 로깅 / 오류 추적
+
+**어디서 깨졌는지는 상태 코드가 먼저 말해줍니다** (`errors.py`):
+
+| 상태 | 의미 | 원인 위치 |
+| --- | --- | --- |
+| 422 | 요청 형식 오류 (FastAPI 기본 검증) | 클라이언트 요청 |
+| 502 | LLM 서버 연결 실패 (`LLMConnectionError`) | Ollama 미기동·연결 거부 |
+| 504 | LLM 응답 시간 초과 (`LLMTimeoutError`) | Ollama 과부하·모델 지연 |
+| 500 | 파이프라인·서버 내부 오류 (`RagCoreError` 등) | 서버 코드 |
+
+**요청 ID로 로그를 꿰어 추적합니다**:
+
+- 모든 응답에 `X-Request-ID` 헤더가 붙고, 오류 응답 본문에도 `request_id`가 들어갑니다.
+- 그 요청을 처리하는 동안 찍힌 모든 로그 라인에 같은 ID가 붙습니다:
+  `2026-07-03 12:00:00 ERROR [a1b2c3d4e5f6] api.errors: LLM connection failed: ...`
+- 클라이언트가 `X-Request-ID`를 보내면 그 값을 그대로 사용합니다(프론트↔백엔드 대조).
+
+**로그 위치**: 기본은 stdout(→ VM에선 journald). `APP_LOG_FILE`을 설정하면 회전 파일로도
+남습니다 — VM 서비스는 `/var/log/rfp/api.log` (팀원이 sudo 없이 열람 가능,
+`deploy/systemd/rfp-api.service` 참고). 레벨은 `APP_LOG_LEVEL`(기본 INFO).
+
+**규칙**: `rag_core`는 모듈 로거(`logging.getLogger(__name__)`)로 찍기만 하고
+핸들러/포맷을 설정하지 않습니다(설정은 `logging_config.py`에서 1회).
+파이프라인 구현은 외부 예외를 그대로 흘리지 말고 `rag_core/exceptions.py`의
+도메인 예외로 변환해 던지세요 — 예: Ollama 호출부에서 `requests.ConnectionError`
+→ `LLMConnectionError`, `requests.Timeout` → `LLMTimeoutError`.
+프롬프트/문서 전문은 로그에 남기지 말고 길이·청크 ID만 기록합니다.
 
 ## API 문서 (Swagger UI)
 

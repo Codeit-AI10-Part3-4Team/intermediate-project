@@ -19,6 +19,10 @@ WorkingDirectory=/home/seen/intermediate-project
 # JupyterHub 터미널과 동일한 배선(jupyterhub.service 참고). systemd는 빈 환경으로
 # 시작하므로 명시하지 않으면 ModuleNotFoundError로 즉사한다.
 Environment=PYTHONPATH=/opt/jhub-venv/lib/python3.12/site-packages
+# 로그 파일: /var/log/rfp/api.log (회전). journalctl은 sudo가 필요해 팀원이 못 보므로
+# 파일로도 남긴다. LogsDirectory가 /var/log/rfp를 서비스 계정 소유로 만들어 준다.
+LogsDirectory=rfp
+Environment=APP_LOG_FILE=/var/log/rfp/api.log
 ExecStart=/home/seen/ai/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8090
 Restart=on-failure
 RestartSec=3
