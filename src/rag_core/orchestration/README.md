@@ -12,7 +12,7 @@ PM
   `run(query, top_k, session_id=None, company_info=None) -> RagResponse`.
   `session_id`가 없으면 요청마다 새 thread(stateless), 있으면 멀티턴 유지.
 - `langgraph_router.py` — StateGraph 정의: 키워드 기반 질문 분류, 하이브리드 검색 호출,
-  Ollama 호출(실패 시 OpenAI `gpt-4o-mini` fallback — `OPENAI_API_KEY` 필요), 후처리.
+  Ollama 호출(실패 시 RuntimeError → api 계층에서 502/504 응답), 후처리.
 
 ## 배선
 - `use_mock=False`일 때 `api/lifespan.py`가 `LangGraphOrchestrator(chroma_dir=Settings.chroma_dir)`로 주입.

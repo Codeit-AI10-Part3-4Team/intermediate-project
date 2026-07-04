@@ -12,7 +12,6 @@ rag_core.interfaces.Orchestrator Protocol을 구조적으로 충족한다.
 from __future__ import annotations
 
 import os
-import uuid
 from typing import Optional
 
 from rag_core.schemas import RagResponse, RetrievedChunk, Chunk
@@ -38,9 +37,12 @@ class LangGraphOrchestrator:
         )
 
         # LangGraph 앱 초기화 (Retriever + Ollama 포함)
+        # 멀티턴용(체크포인터 有)과 일회성용(체크포인터 無) 두 그래프를 준비한다.
+        # session_id 없는 요청은 체크포인터 없는 그래프로 처리해 상태 누적을 원천 차단.
         from rag_core.orchestration.langgraph_router import build_graph
 
-        self._app = build_graph(chroma_dir=resolved_chroma_dir)
+        self._app = build_graph(chroma_dir=resolved_chroma_dir, use_checkpointer=True)
+        self._app_stateless = build_graph(chroma_dir=resolved_chroma_dir, use_checkpointer=False)
 
     def run(
         self,
@@ -63,8 +65,16 @@ class LangGraphOrchestrator:
         Returns:
             RagResponse(answer, sources, usage)
         """
-        thread_id = session_id or str(uuid.uuid4())
-        config = {"configurable": {"thread_id": thread_id}}
+        # session_id 있으면 멀티턴(체크포인터 有) 그래프, 없으면 일회성(체크포인터 無) 그래프.
+        # 체크포인터 없는 그래프는 상태를 저장하지 않아 메모리 누수가 원천적으로 없다.
+        if session_id:
+            app = self._app
+            thread_id = session_id
+            config = {"configurable": {"thread_id": thread_id}}
+        else:
+            app = self._app_stateless
+            thread_id = ""  # 일회성 요청은 세션 추적 안 함
+            config = {}
 
         state_input: dict = {
             "question": query,
@@ -73,7 +83,7 @@ class LangGraphOrchestrator:
         if company_info:
             state_input["company_info"] = company_info
 
-        result = self._app.invoke(state_input, config=config)
+        result = app.invoke(state_input, config=config)
 
         answer = result.get("answer", "")
         retrieved_sources = result.get("retrieved_sources", [])
@@ -90,8 +100,8 @@ class LangGraphOrchestrator:
                     metadata=src.get("metadata", {}),
                 )
                 sources.append(RetrievedChunk(chunk=chunk, score=src.get("score", 0.0)))
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[Orchestrator] source 변환 오류 (skip): {e}")
 
         return RagResponse(
             answer=answer,
