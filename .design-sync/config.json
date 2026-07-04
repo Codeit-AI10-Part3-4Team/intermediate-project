@@ -1,0 +1,8 @@
+{
+  "projectId": "00640773-7f62-4ca4-af9c-45b3188a0a5a",
+  "projectName": "ㅇㅇㅍ 디자인 시스템",
+  "shape": "manual",
+  "pkg": "frontend/design",
+  "readmeHeader": ".design-sync/conventions.md",
+  "builder": ".design-sync/build_bundle.py"
+}
