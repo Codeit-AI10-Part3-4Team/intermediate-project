@@ -11,7 +11,7 @@ RFP RAG 서비스 프론트엔드의 브랜드 디자인 자산입니다 (스펙
   - SIL Open Font License 1.1 — 상업 사용·재배포 허용, 라이선스 파일 동봉 필수
 - `previews/` — 컴포넌트·화면 목업 HTML (Claude Design 카드용, 브라우저로 직접 열람 가능)
 
-## Streamlit 매핑 (PoC 단계에서 적용)
+## Streamlit 매핑 (적용 완료 — `frontend/.streamlit/config.toml`)
 
 ```toml
 # frontend/.streamlit/config.toml
@@ -26,6 +26,8 @@ textColor = "#2C3323"
 폰트는 `enableStaticServing` + `[[theme.fontFaces]]`로 셀프 호스팅(CDN 미의존).
 세부 스타일(말풍선 우측 정렬 등)은 data-testid 기반 CSS 최소 주입 —
 내부 클래스(st-emotion-cache-*) 의존 금지(버전 업 시 파손).
+컴포넌트별 CSS 구현은 `frontend/styles.py`, 구현 주의사항(동기 pending 흐름,
+fragment/iframe 금지 등)은 `frontend/README.md` 참고.
 
 ## 색 사용 규칙
 

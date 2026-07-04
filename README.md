@@ -86,7 +86,7 @@ intermediate-project/
 │   ├── golden_dataset/    # 골든 데이터셋 (123개 QA)
 │   ├── metrics.py         # 평가 지표 계산 함수
 │   └── eval_criteria.md   # 평가 기준 문서
-├── frontend/              # Streamlit 웹 UI (질의·업로드 페이지)
+├── frontend/              # Streamlit 웹 UI — ChatGPT식 단일 채팅 화면 (ㅇㅇㅍ 디자인 시스템)
 ├── deploy/                # VM 배포 자산 (systemd 유닛, 환경 스냅샷)
 ├── notebooks/             # Jupyter Notebooks
 │   ├── data/              # EDA, 전처리 실험

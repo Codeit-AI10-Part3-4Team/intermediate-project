@@ -9,7 +9,7 @@
 
 ## 현재 구성
 - `api/` — FastAPI `TestClient` 기반: 라우터(`test_rag`/`test_upload`/`test_docs`), 요청 ID 미들웨어(`test_middleware`), 예외→HTTP 매핑(`test_errors`), Settings(`test_config`)
-- `frontend/` — `httpx.MockTransport` 기반 `api_client` 테스트 (실서버 불필요)
+- `frontend/` — `httpx.MockTransport` 기반 `api_client` 테스트 + `AppTest` 기반 앱 스모크(`test_app.py`: 화면 전환·질의·에러 매핑·관련 질문 버튼 — streamlit 미설치 CI에서는 `importorskip`으로 자동 skip)
 - 루트 — `test_parser`·`test_chunker`·`test_parity_check_parsing`(데이터 없으면 skip), `test_import_integrity`(src/ 내부 import가 실재 모듈인지 AST 정적 검증 — 무거운 의존성 불필요)
 - **테스트 공백(알려짐)**: retrieval·embedding·llm·prompts·orchestration은 아직 단위 테스트가 없습니다. 추가 시 아래 원칙을 따르세요.
 
