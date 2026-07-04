@@ -15,7 +15,8 @@
 | 희원 | Retrieval Engineer | 청킹, 임베딩, Vector DB 구축 및 검색 파이프라인 |
 | 지우 | Generation Engineer | LLM 실험, 프롬프트 엔지니어링, 후처리 |
 | 유빈 | Data Engineer | 데이터 수집, EDA, 전처리, HWP/PDF 파싱 |
-| 호정 | Backend/Infra | GCP VM, JupyterHub, API 서버, GitHub 관리 |
+| 호정 | Tech Lead | GCP VM, JupyterHub, FastAPI 서버, GitHub 관리, Streamlit 기반 FrontEnd 구현, 배포 관리 |
+
 ---
 
 ## 프로젝트 목표
