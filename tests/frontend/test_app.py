@@ -6,6 +6,7 @@
 # CI는 [frontend] extra(streamlit)를 설치하지 않으므로(경량 CI 관례),
 # streamlit이 없으면 모듈 전체를 skip한다 — 데이터 의존 테스트의 skipif와 동일 취지.
 
+import time
 from pathlib import Path
 from typing import Any
 
@@ -52,9 +53,18 @@ def _tick(at: AppTest) -> None:
     """pending 워커의 run_every 틱 대행.
 
     실제 앱에서는 프래그먼트 타이머가 브라우저에서 발화하지만 AppTest에는
-    시계가 없으므로, 전체 rerun으로 인라인 패스(armed 상태)를 실행시킨다.
+    시계가 없으므로, 백그라운드 호출 스레드의 완료를 기다린 뒤 전체 rerun으로
+    폴링 패스를 실행시킨다.
     """
-    assert at.session_state["pending_armed"] is True  # 메인 런이 화면을 먼저 그렸다
+    call = at.session_state["pending_call"]
+    if call is None:
+        # 즉답 백엔드(mock)면 메인 런의 인라인 패스에서 이미 처리됨
+        assert at.session_state["pending_query"] is None
+        return
+    deadline = time.monotonic() + 5
+    while not call.get("done"):
+        assert time.monotonic() < deadline, "worker thread did not finish in 5s"
+        time.sleep(0.01)
     at.run()
     assert not at.exception
 
@@ -72,14 +82,13 @@ def test_query_switches_to_chat_and_appends_answer(monkeypatch: pytest.MonkeyPat
     at = _boot()
     at.chat_input[0].set_value("수행 기간은?").run()
 
-    # 메인 런은 화면만 그리고 종료(잔상 방지), 호출은 워커 틱에서
+    # 메인 런은 화면만 그리고 종료(잔상 방지), 호출은 백그라운드 스레드 + 워커 틱
     assert not at.exception
     assert at.session_state["screen"] == "chat"
-    assert at.session_state["pending_query"] == "수행 기간은?"
     _tick(at)
 
     assert at.session_state["pending_query"] is None
-    assert at.session_state["pending_armed"] is False
+    assert at.session_state["pending_call"] is None
     messages = at.session_state["messages"]
     assert [m["role"] for m in messages] == ["user", "assistant"]
     assert messages[1]["content"].startswith("테스트 답변")
