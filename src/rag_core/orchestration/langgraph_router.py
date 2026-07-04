@@ -25,7 +25,6 @@ Retriever(Hybrid RRF) + Ollama(exaone3.5:7.8b) 실제 연동 버전.
 
 from __future__ import annotations
 
-import collections
 import os
 from typing import Any, Literal, Optional, TypedDict
 
@@ -38,6 +37,8 @@ from rag_core.llm.pipeline import (
     ask_exaone_from_docs,
     is_score_prediction_question,
     score_prediction_guardrail_answer,
+    split_comparison_entities,
+    retrieve_multi_query,
 )
 from rag_core.prompts.builder import build_prompt as _builder_build_prompt
 from rag_core.exceptions import LLMConnectionError, LLMTimeoutError
@@ -370,33 +371,27 @@ def generate_sub_queries(question: str) -> list[str]:
 
 
 def multi_doc_compare_node(state: RagState) -> dict:
-    """다중문서_비교: 쿼리 분리 후 RRF 병합 검색. 업로드 임시 DB 우선 사용."""
+    """다중문서_비교: split_comparison_entities로 기관별 쿼리 분리 후
+    retrieve_multi_query(max_chunks_per_doc=2)로 문서 다양성 확보. 업로드 임시 DB 우선.
+    한 문서가 top-k를 독점해 상대 문서가 밀려나는 문제(Q061/Q010) 방지."""
     question = state.get("rewritten_question", state["question"])
     try:
-        sub_queries = generate_sub_queries(question)
         retriever = _get_active_retriever(state)
-        all_retrieved_results = []
-        for query in sub_queries:
-            retrieved = retriever.retrieve(query, top_k=TOP_K_DEFAULT)
-            all_retrieved_results.append(retrieved)
-
-        rrf_k = 60
-        rrf_scores: collections.defaultdict[str, float] = collections.defaultdict(float)
-        doc_map: dict[str, Any] = {}
-
-        for retrieved_list in all_retrieved_results:
-            for rank, r in enumerate(retrieved_list, start=1):
-                key = r.chunk.text
-                rrf_scores[key] += 1.0 / (rrf_k + rank)
-                if key not in doc_map:
-                    doc_map[key] = r.chunk
-
-        sorted_docs = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
-        final_top_k = sorted_docs[:TOP_K_DEFAULT]
-
-        chunks = [doc_map[key].text for key, score in final_top_k]
+        queries = split_comparison_entities(question)
+        if not queries:
+            queries = [question]
+        docs = retrieve_multi_query(queries, retriever, k_each=TOP_K_DEFAULT, max_chunks_per_doc=2)
+        chunks = [d.page_content for d in docs]
+        # retrieve_multi_query는 RRF 내부 점수를 밖으로 반환하지 않으므로,
+        # 반환 순서(관련도 내림차순) 기반으로 표시용 순위 점수를 부여한다.
         sources = [
-            {"doc_id": doc_map[key].doc_id, "rrf_score": score} for key, score in final_top_k
+            {
+                "doc_id": d.metadata.get("doc_id", ""),
+                "score": round(1.0 / (rank + 1), 4),
+                "metadata": d.metadata,
+                "text": d.page_content,
+            }
+            for rank, d in enumerate(docs)
         ]
         return {"retrieved_chunks": chunks, "retrieved_sources": sources}
     except Exception as e:
