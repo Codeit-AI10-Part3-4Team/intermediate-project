@@ -4,23 +4,34 @@
 # blocking API call runs after both are on screen (progressive rendering),
 # then a rerun appends the answer. Each /rag call is independent — the visible
 # history is display-only (the backend has no conversation memory yet).
+#
+# ⚠️ The pending flow is DELIBERATELY synchronous (blocking call at the end of
+# the main run). Two previous designs crashed Streamlit 1.58 on the VM with a
+# SIGSEGV core dump on every question: @st.fragment(run_every=...) polling
+# (with or without a worker thread) and the components.v1 scroll iframe.
+# Do not reintroduce fragments/threads here without soak-testing on the
+# deploy target. Stale leftovers of the previous screen during the blocking
+# run are hidden by PENDING_CSS instead.
 
 import re
-import threading
 from typing import Any
 
 import streamlit as st
 
 from api_client import ApiClientError, RagApiClient
-from styles import CHAT_CSS
+from styles import CHAT_CSS, PENDING_CSS
 from ui import render_header, render_sources
 
 
 def render() -> None:
     st.html(CHAT_CSS)
+    pending = st.session_state.pending_query
+    if pending:
+        # This run will block on the LLM below; without this, the previous
+        # run's widgets (home screen) stay on screen dimmed the whole wait.
+        st.html(PENDING_CSS)
     render_header(show_back=True)
 
-    pending = st.session_state.pending_query
     _, mid, _ = st.columns([1, 2, 1])
     with mid:
         for index, message in enumerate(st.session_state.messages):
@@ -40,7 +51,6 @@ def render() -> None:
                 '<div class="oop-genwrap"><span class="oop-spinner"></span>'
                 '<span class="oop-cap">답변 생성 중…</span></div>'
             )
-            _pending_worker()
 
     # Top-level call keeps the input pinned to the bottom of the page.
     prompt = st.chat_input(
@@ -49,25 +59,17 @@ def render() -> None:
     if prompt and prompt.strip() and pending is None:
         _submit_query(prompt.strip())
 
+    if pending:
+        # Last statement of the run: the whole chat screen (spinner, disabled
+        # input) is already painted before this blocks.
+        _answer_pending_query(pending)
 
-@st.fragment(run_every="0.3s")
-def _pending_worker() -> None:
-    """Poll the background /rag call and publish the answer when it lands.
 
-    Every tick returns immediately — no script or fragment run ever blocks on
-    the LLM. (A blocking call inside a run_every tick collides with the next
-    ticks: runs get preempted/aborted for the whole LLM wait, which crashed
-    the deployed app and reset sessions back to the home screen.)
-    """
-    ss = st.session_state
-    call = ss.pending_call
-    if not ss.pending_query or call is None or not call.get("done"):
-        return
-    if "error" in call:
-        ss.messages.append({"role": "assistant", "content": call["error"], "is_error": True})
-    else:
-        result = call["result"]
-        ss.messages.append(
+def _answer_pending_query(pending: str) -> None:
+    """Blocking POST /rag; appends the assistant message (or error) and reruns."""
+    try:
+        result = RagApiClient().query_rag(query=pending, top_k=st.session_state.top_k)
+        st.session_state.messages.append(
             {
                 "role": "assistant",
                 "content": result.get("answer") or "_(빈 답변)_",
@@ -75,47 +77,18 @@ def _pending_worker() -> None:
                 "usage": result.get("usage") or {},
             }
         )
-    ss.pending_query = None
-    ss.pending_call = None
-    _rerun_app()
-
-
-def _rerun_app() -> None:
-    """Full-app rerun that also works on Streamlit versions without the
-    scope kwarg (RerunException is control flow and passes through)."""
-    try:
-        st.rerun(scope="app")
-    except TypeError:
-        st.rerun()
-
-
-def start_pending(query: str) -> None:
-    """Append the user message and fire /rag on a daemon thread.
-
-    The thread writes into a plain dict held in session_state ("done" last,
-    so the polling side never sees a half-filled result) and must not touch
-    any st.* API. Called from the home-submit routing and _submit_query.
-    """
-    st.session_state.messages.append({"role": "user", "content": query})
-    st.session_state.pending_query = query
-    call: dict[str, Any] = {}
-    st.session_state.pending_call = call
-    top_k = st.session_state.top_k
-
-    def work() -> None:
-        try:
-            call["result"] = RagApiClient().query_rag(query=query, top_k=top_k)
-        except ApiClientError as e:
-            call["error"] = e.message
-        except Exception:  # a worker thread must never die silently
-            call["error"] = "답변 생성 중 예기치 못한 오류가 발생했습니다. 다시 시도해 주세요."
-        call["done"] = True
-
-    threading.Thread(target=work, daemon=True).start()
+    except ApiClientError as e:
+        st.session_state.messages.append(
+            {"role": "assistant", "content": e.message, "is_error": True}
+        )
+    st.session_state.pending_query = None
+    st.rerun()
 
 
 def _submit_query(query: str) -> None:
-    start_pending(query)
+    """Append the user message and rerun into the pending (blocking) flow."""
+    st.session_state.messages.append({"role": "user", "content": query})
+    st.session_state.pending_query = query
     st.rerun()
 
 
