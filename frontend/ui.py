@@ -30,7 +30,7 @@ def render_header(show_back: bool) -> None:
                 st.session_state.screen = "home"
                 st.session_state.messages = []
                 st.session_state.pending_query = None
-                st.session_state.pending_dispatched = False
+                st.session_state.pending_armed = False
                 st.rerun()
 
 

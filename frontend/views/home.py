@@ -23,23 +23,28 @@ def render() -> None:
         greeting = st.empty()
         st.html('<div style="height:0.5rem"></div>')
 
-        query = st.chat_input("궁금한 것을 물어보세요", key="home_input")
-
-        upload_col, gear_col = st.columns([6, 1], vertical_alignment="center")
-        with upload_col:
-            uploaded = st.file_uploader(
-                "RFP 문서 업로드",
-                type=["pdf", "hwp"],
-                label_visibility="collapsed",
-                key="uploader",
-            )
+        input_col, gear_col = st.columns([11, 1], vertical_alignment="center")
+        with input_col:
+            # Submission is consumed by app._route_home_submit before render.
+            st.chat_input("궁금한 것을 물어보세요", key="home_input")
         with gear_col:
             with st.popover(":material/settings:", help="검색 설정"):
-                # key binding keeps the value alive after leaving this screen —
-                # a keyless slider lingers as a stale element during the screen
-                # switch and breaks AppTest state serialization.
-                st.slider("근거 청크 수 (top_k)", 1, 50, key="top_k")
+                # Widget-backed keys are dropped when the widget leaves the
+                # screen, so the chosen value lives in the plain "top_k" key
+                # and the widget re-seeds from it on each home render.
+                st.session_state.top_k = st.slider(
+                    "근거 청크 수 (top_k)", 1, 50, st.session_state.top_k, key="top_k_widget"
+                )
                 st.caption(f"API: {RagApiClient().base_url}")
+
+        # Full-width row so the dropzone's own centering lands on the screen
+        # center (the button look comes from styles.py).
+        uploaded = st.file_uploader(
+            "RFP 문서 업로드",
+            type=["pdf", "hwp"],
+            label_visibility="collapsed",
+            key="uploader",
+        )
         st.html(
             '<div class="oop-cap">업로드한 문서는 RFP 적합성 검사 후 즉시 폐기되며 '
             "서버에 저장되지 않습니다</div>"
@@ -68,13 +73,6 @@ def render() -> None:
         if checking:
             # Runs after the greeting swap is on screen; reruns when done.
             _run_suitability_check(uploaded, file_key)
-
-    if query and query.strip():
-        st.session_state.messages.append({"role": "user", "content": query.strip()})
-        st.session_state.pending_query = query.strip()
-        st.session_state.pending_dispatched = False
-        st.session_state.screen = "chat"
-        st.rerun()
 
 
 def _run_suitability_check(uploaded, file_key: str | None) -> None:
