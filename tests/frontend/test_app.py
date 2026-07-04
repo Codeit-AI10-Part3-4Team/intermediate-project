@@ -48,6 +48,17 @@ def _boot() -> AppTest:
     return at
 
 
+def _tick(at: AppTest) -> None:
+    """pending 워커의 run_every 틱 대행.
+
+    실제 앱에서는 프래그먼트 타이머가 브라우저에서 발화하지만 AppTest에는
+    시계가 없으므로, 전체 rerun으로 인라인 패스(armed 상태)를 실행시킨다.
+    """
+    assert at.session_state["pending_armed"] is True  # 메인 런이 화면을 먼저 그렸다
+    at.run()
+    assert not at.exception
+
+
 def test_home_screen_boots() -> None:
     at = _boot()
     assert at.session_state["screen"] == "home"
@@ -61,10 +72,14 @@ def test_query_switches_to_chat_and_appends_answer(monkeypatch: pytest.MonkeyPat
     at = _boot()
     at.chat_input[0].set_value("수행 기간은?").run()
 
+    # 메인 런은 화면만 그리고 종료(잔상 방지), 호출은 워커 틱에서
     assert not at.exception
     assert at.session_state["screen"] == "chat"
-    assert at.session_state["pending_query"] is None  # answered across reruns
-    assert at.session_state["pending_dispatched"] is False  # two-phase flow settled
+    assert at.session_state["pending_query"] == "수행 기간은?"
+    _tick(at)
+
+    assert at.session_state["pending_query"] is None
+    assert at.session_state["pending_armed"] is False
     messages = at.session_state["messages"]
     assert [m["role"] for m in messages] == ["user", "assistant"]
     assert messages[1]["content"].startswith("테스트 답변")
@@ -86,8 +101,8 @@ def test_api_error_becomes_error_message(monkeypatch: pytest.MonkeyPatch) -> Non
 
     at = _boot()
     at.chat_input[0].set_value("질문").run()
+    _tick(at)
 
-    assert not at.exception
     messages = at.session_state["messages"]
     assert messages[1]["is_error"] is True
     assert messages[1]["content"] == "연결 실패"
@@ -118,13 +133,14 @@ def test_related_question_button_submits_query(monkeypatch: pytest.MonkeyPatch) 
 
     at = _boot()
     at.chat_input[0].set_value("첫 질문").run()
+    _tick(at)
 
     # 답변(usage.related_questions)에서 만들어진 제안 버튼 클릭 → 재질의
     button = at.button(key="related_q_1_0")
     assert button.label == "후속 질문?"
     button.click().run()
+    _tick(at)
 
-    assert not at.exception
     messages = at.session_state["messages"]
     assert [m["role"] for m in messages] == ["user", "assistant", "user", "assistant"]
     assert messages[2]["content"] == "후속 질문?"  # numbering 제거된 본문으로 질의

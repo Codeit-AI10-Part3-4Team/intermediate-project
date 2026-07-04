@@ -41,6 +41,7 @@ def render() -> None:
                 '<span class="oop-cap">답변 생성 중…</span></div>'
             )
             _scroll_last_user_message_to_top()
+            _pending_worker()
 
     # Top-level call keeps the input pinned to the bottom of the page.
     prompt = st.chat_input(
@@ -49,16 +50,24 @@ def render() -> None:
     if prompt and prompt.strip() and pending is None:
         _submit_query(prompt.strip())
 
-    if pending:
-        if st.session_state.pending_dispatched:
-            _answer_pending_query(pending)
-        else:
-            # Paint the chat screen first and make the blocking call on the
-            # next run. A blocking call in the same run as a screen switch
-            # keeps the previous screen's widgets on screen as dimmed stale
-            # elements for the whole LLM latency.
-            st.session_state.pending_dispatched = True
-            st.rerun()
+
+@st.fragment(run_every="0.3s")
+def _pending_worker() -> None:
+    """Run the blocking /rag call only after the main run has completed.
+
+    A run interrupted by st.rerun() never finishes, so Streamlit keeps the
+    previous screen's widgets on screen (dimmed) for the whole LLM wait if the
+    call happens in-line. Instead the inline (first) execution just arms the
+    timer and lets the main run finish painting; the next run_every tick —
+    a fragment-only rerun that leaves the page intact — makes the call.
+    """
+    ss = st.session_state
+    if not ss.pending_query:
+        return
+    if not ss.pending_armed:
+        ss.pending_armed = True
+        return
+    _answer_pending_query(ss.pending_query)
 
 
 def _answer_pending_query(pending: str) -> None:
@@ -78,15 +87,15 @@ def _answer_pending_query(pending: str) -> None:
             {"role": "assistant", "content": e.message, "is_error": True}
         )
     st.session_state.pending_query = None
-    st.session_state.pending_dispatched = False
-    st.rerun()
+    st.session_state.pending_armed = False
+    st.rerun(scope="app")
 
 
 def _submit_query(query: str) -> None:
-    """Append the user message and hand the query to the two-phase pending flow."""
+    """Append the user message and hand the query to the pending worker flow."""
     st.session_state.messages.append({"role": "user", "content": query})
     st.session_state.pending_query = query
-    st.session_state.pending_dispatched = False
+    st.session_state.pending_armed = False
     st.rerun()
 
 
