@@ -35,9 +35,10 @@ def render() -> None:
             )
         with gear_col:
             with st.popover(":material/settings:", help="검색 설정"):
-                st.session_state.top_k = st.slider(
-                    "근거 청크 수 (top_k)", 1, 50, st.session_state.top_k
-                )
+                # key binding keeps the value alive after leaving this screen —
+                # a keyless slider lingers as a stale element during the screen
+                # switch and breaks AppTest state serialization.
+                st.slider("근거 청크 수 (top_k)", 1, 50, key="top_k")
                 st.caption(f"API: {RagApiClient().base_url}")
         st.html(
             '<div class="oop-cap">업로드한 문서는 RFP 적합성 검사 후 즉시 폐기되며 '
@@ -71,6 +72,7 @@ def render() -> None:
     if query and query.strip():
         st.session_state.messages.append({"role": "user", "content": query.strip()})
         st.session_state.pending_query = query.strip()
+        st.session_state.pending_dispatched = False
         st.session_state.screen = "chat"
         st.rerun()
 

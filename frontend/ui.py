@@ -30,6 +30,7 @@ def render_header(show_back: bool) -> None:
                 st.session_state.screen = "home"
                 st.session_state.messages = []
                 st.session_state.pending_query = None
+                st.session_state.pending_dispatched = False
                 st.rerun()
 
 
@@ -42,7 +43,7 @@ def render_sources(sources: list[dict[str, Any]]) -> None:
         chunk = source.get("chunk") or {}
         score = source.get("score")
         score_text = f"{score:.4f}" if isinstance(score, (int, float)) else "-"
-        with st.expander(f"[{i}] {chunk.get('chunk_id', '(id 없음)')} · score {score_text}"):
+        with st.expander(f"[{i}] {chunk.get('chunk_id') or '(id 없음)'} · score {score_text}"):
             st.write(chunk.get("text") or "_(본문 없음)_")
             metadata = chunk.get("metadata") or {}
             if metadata:

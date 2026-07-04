@@ -41,6 +41,9 @@ header[data-testid="stHeader"] { display: none; }
   background: #FFFFFF; color: #2C3323; border: 1px solid #DFE0D4;
   border-radius: 12px; padding: 0.7rem 1.3rem;
 }
+/* some Streamlit versions render the label inside child nodes (icon + span)
+   that keep their own font-size — hide them so only ::after shows */
+[data-testid="stFileUploaderDropzone"] button > * { display: none; }
 [data-testid="stFileUploaderDropzone"] button::after {
   content: "문서 업로드"; font-size: 15px; font-weight: 700;
 }
