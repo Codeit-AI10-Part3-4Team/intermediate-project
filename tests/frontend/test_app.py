@@ -2,14 +2,20 @@
 # frontend/app.py 스모크 테스트 — AppTest로 화면 전환·질의 흐름을 네트워크 없이
 # 검증한다 (RagApiClient는 views 모듈 네임스페이스에서 monkeypatch).
 # (import 경로는 pyproject [tool.pytest.ini_options] pythonpath=["frontend"] 기준)
+#
+# CI는 [frontend] extra(streamlit)를 설치하지 않으므로(경량 CI 관례),
+# streamlit이 없으면 모듈 전체를 skip한다 — 데이터 의존 테스트의 skipif와 동일 취지.
 
 from pathlib import Path
 from typing import Any
 
 import pytest
-from streamlit.testing.v1 import AppTest
 
-import views.chat
+pytest.importorskip("streamlit", reason="frontend extra 미설치 (pip install -e '.[frontend]')")
+
+from streamlit.testing.v1 import AppTest  # noqa: E402
+
+import views.chat  # noqa: E402
 
 APP_PATH = str(Path(__file__).parents[2] / "frontend" / "app.py")
 
