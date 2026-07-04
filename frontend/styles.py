@@ -84,7 +84,14 @@ header[data-testid="stHeader"] { display: none; }
 
 HOME_CSS = """
 <style>
-[data-testid="stMainBlockContainer"] { padding-top: 1.5rem; }
+[data-testid="stMainBlockContainer"] { padding-top: 1.5rem; padding-bottom: 0.5rem; }
+/* Vertically center the UI group: the top-level vertical block fills the
+   viewport and the .oop-vspace spacers (flex-grow) absorb the leftover
+   space above and below the group. */
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] {
+  min-height: calc(100vh - 2rem);
+}
+[data-testid="stElementContainer"]:has(.oop-vspace) { flex: 1 1 0; }
 </style>
 """
 

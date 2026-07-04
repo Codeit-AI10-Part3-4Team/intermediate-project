@@ -7,7 +7,7 @@ import streamlit as st
 
 from api_client import ApiClientError, RagApiClient
 from styles import HOME_CSS
-from ui import CHECKING_HTML, GREETING_HTML, render_header
+from ui import CHECKING_HTML, GREETING_HTML, build_rev, render_header
 
 MAX_UPLOAD_MB = 20  # keep in sync with api/routers/upload.py MAX_UPLOAD_BYTES
 
@@ -15,10 +15,10 @@ MAX_UPLOAD_MB = 20  # keep in sync with api/routers/upload.py MAX_UPLOAD_BYTES
 def render() -> None:
     st.html(HOME_CSS)
     render_header(show_back=False)
+    st.html('<div class="oop-vspace"></div>')
 
     _, mid, _ = st.columns([1, 2, 1])
     with mid:
-        st.html('<div style="height:16vh"></div>')
         # Filled at the end of the run: greeting normally, "검사 중" during a check.
         greeting = st.empty()
         st.html('<div style="height:0.5rem"></div>')
@@ -35,7 +35,7 @@ def render() -> None:
                 st.session_state.top_k = st.slider(
                     "근거 청크 수 (top_k)", 1, 50, st.session_state.top_k, key="top_k_widget"
                 )
-                st.caption(f"API: {RagApiClient().base_url}")
+                st.caption(f"API: {RagApiClient().base_url} · build {build_rev()}")
 
         # Full-width row so the dropzone's own centering lands on the screen
         # center (the button look comes from styles.py).
@@ -73,6 +73,8 @@ def render() -> None:
         if checking:
             # Runs after the greeting swap is on screen; reruns when done.
             _run_suitability_check(uploaded, file_key)
+
+    st.html('<div class="oop-vspace"></div>')
 
 
 def _run_suitability_check(uploaded, file_key: str | None) -> None:

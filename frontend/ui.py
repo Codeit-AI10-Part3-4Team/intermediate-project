@@ -1,6 +1,8 @@
 # frontend/ui.py
 # Render helpers shared by both screens (header, source chunks).
 
+import functools
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +19,24 @@ CHECKING_HTML = (
     '<div class="oop-greeting oop-checking"><span class="oop-spinner"></span>'
     "문서를 검사 중입니다</div>"
 )
+
+
+@functools.cache
+def build_rev() -> str:
+    """Short git SHA of the running code — lets anyone verify a deploy took
+    effect from the UI (⚙ popover) instead of guessing."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            cwd=Path(__file__).parent,
+            check=False,
+        )
+        return result.stdout.strip() or "unknown"
+    except OSError:
+        return "unknown"
 
 
 def render_header(show_back: bool) -> None:
