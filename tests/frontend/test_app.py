@@ -6,7 +6,6 @@
 # CI는 [frontend] extra(streamlit)를 설치하지 않으므로(경량 CI 관례),
 # streamlit이 없으면 모듈 전체를 skip한다 — 데이터 의존 테스트의 skipif와 동일 취지.
 
-import time
 from pathlib import Path
 from typing import Any
 
@@ -49,26 +48,6 @@ def _boot() -> AppTest:
     return at
 
 
-def _tick(at: AppTest) -> None:
-    """pending 워커의 run_every 틱 대행.
-
-    실제 앱에서는 프래그먼트 타이머가 브라우저에서 발화하지만 AppTest에는
-    시계가 없으므로, 백그라운드 호출 스레드의 완료를 기다린 뒤 전체 rerun으로
-    폴링 패스를 실행시킨다.
-    """
-    call = at.session_state["pending_call"]
-    if call is None:
-        # 즉답 백엔드(mock)면 메인 런의 인라인 패스에서 이미 처리됨
-        assert at.session_state["pending_query"] is None
-        return
-    deadline = time.monotonic() + 5
-    while not call.get("done"):
-        assert time.monotonic() < deadline, "worker thread did not finish in 5s"
-        time.sleep(0.01)
-    at.run()
-    assert not at.exception
-
-
 def test_home_screen_boots() -> None:
     at = _boot()
     assert at.session_state["screen"] == "home"
@@ -82,13 +61,10 @@ def test_query_switches_to_chat_and_appends_answer(monkeypatch: pytest.MonkeyPat
     at = _boot()
     at.chat_input[0].set_value("수행 기간은?").run()
 
-    # 메인 런은 화면만 그리고 종료(잔상 방지), 호출은 백그라운드 스레드 + 워커 틱
+    # 홈 제출이 같은 런에서 chat으로 라우팅되고, 런 말미의 동기 호출로 답변까지 완료
     assert not at.exception
     assert at.session_state["screen"] == "chat"
-    _tick(at)
-
     assert at.session_state["pending_query"] is None
-    assert at.session_state["pending_call"] is None
     messages = at.session_state["messages"]
     assert [m["role"] for m in messages] == ["user", "assistant"]
     assert messages[1]["content"].startswith("테스트 답변")
@@ -110,8 +86,8 @@ def test_api_error_becomes_error_message(monkeypatch: pytest.MonkeyPatch) -> Non
 
     at = _boot()
     at.chat_input[0].set_value("질문").run()
-    _tick(at)
 
+    assert not at.exception
     messages = at.session_state["messages"]
     assert messages[1]["is_error"] is True
     assert messages[1]["content"] == "연결 실패"
@@ -142,14 +118,13 @@ def test_related_question_button_submits_query(monkeypatch: pytest.MonkeyPatch) 
 
     at = _boot()
     at.chat_input[0].set_value("첫 질문").run()
-    _tick(at)
 
     # 답변(usage.related_questions)에서 만들어진 제안 버튼 클릭 → 재질의
     button = at.button(key="related_q_1_0")
     assert button.label == "후속 질문?"
     button.click().run()
-    _tick(at)
 
+    assert not at.exception
     messages = at.session_state["messages"]
     assert [m["role"] for m in messages] == ["user", "assistant", "user", "assistant"]
     assert messages[2]["content"] == "후속 질문?"  # numbering 제거된 본문으로 질의

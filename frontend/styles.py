@@ -101,3 +101,15 @@ CHAT_CSS = """
 [data-testid="stBottomBlockContainer"] { max-width: 52rem; margin: 0 auto; }
 </style>
 """
+
+# Injected only while the blocking answer run is in flight: the previous run's
+# leftover widgets (home screen) would otherwise linger dimmed until the run
+# completes. Covers the data-stale attribute (1.5x) and the legacy class.
+PENDING_CSS = """
+<style>
+[data-stale="true"], .stale-element { display: none !important; }
+/* home-only widgets that survive without a stale marker; the chat screen
+   renders neither, so hiding the type wholesale is safe while pending */
+[data-testid="stPopover"], [data-testid="stFileUploader"] { display: none !important; }
+</style>
+"""
