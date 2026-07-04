@@ -1,0 +1,33 @@
+/* frontend/design/tokens.css — ㅇㅇㅍ design tokens (spec v2, 2026-07-04)
+   Canonical source. Streamlit [theme] mapping: see README.md.
+   Light theme only (brand decision). */
+:root {
+  /* color */
+  --oop-bg: #F2F2ED;            /* page background */
+  --oop-surface: #FFFFFF;       /* cards, chat input */
+  --oop-primary: #8C9963;       /* buttons & accents only — not body text */
+  --oop-primary-hover: #7A8754;
+  --oop-primary-active: #6B7849;
+  --oop-green-700: #57633F;     /* accent text on light ground */
+  --oop-green-100: #E9EBDF;     /* tint fills */
+  --oop-user-bubble: #E4E8D5;
+  --oop-ink: #2C3323;           /* body text — 11.1:1 on bg */
+  --oop-ink-muted: #6A7060;     /* captions — 4.6:1 on bg */
+  --oop-border: #DFE0D4;
+  --oop-success: #57633F;
+  --oop-success-bg: #E9EBDF;
+  --oop-danger: #B4533C;
+  --oop-danger-bg: #F6E4DF;
+  /* type */
+  --oop-font: 'Nanum Gothic', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+  --oop-fs-display: 26px;   /* greeting, weight 800 */
+  --oop-fs-h2: 20px;        /* section titles, weight 700 */
+  --oop-fs-body: 16px;      /* weight 400, line-height 1.7 */
+  --oop-fs-caption: 13px;
+  /* shape */
+  --oop-radius-lg: 18px;    /* chat input */
+  --oop-radius-md: 12px;    /* buttons, cards */
+  --oop-radius-pill: 999px;
+  --oop-shadow-sm: 0 1px 2px rgba(44, 51, 35, .06);
+  --oop-shadow-md: 0 4px 14px rgba(44, 51, 35, .10);
+}

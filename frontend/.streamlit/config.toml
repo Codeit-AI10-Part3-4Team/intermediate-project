@@ -6,6 +6,34 @@ headless = true
 port = 8501
 address = "0.0.0.0"
 maxUploadSize = 20  # MB, keep in sync with api/routers/upload.py MAX_UPLOAD_BYTES
+enableStaticServing = true  # serves ./static at /app/static (self-hosted fonts)
 
 [browser]
 gatherUsageStats = false
+
+# Brand theme (design spec v2 — frontend/design/tokens.css is the source of truth).
+# #8C9963 is button/accent only; body text stays #2C3323 for contrast (see design/README.md).
+[theme]
+base = "light"
+primaryColor = "#8C9963"
+backgroundColor = "#F2F2ED"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#2C3323"
+borderColor = "#DFE0D4"
+baseRadius = "12px"
+font = "'Nanum Gothic', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif"
+
+[[theme.fontFaces]]
+family = "Nanum Gothic"
+url = "app/static/fonts/nanum-gothic-400.woff2"
+weight = 400
+
+[[theme.fontFaces]]
+family = "Nanum Gothic"
+url = "app/static/fonts/nanum-gothic-700.woff2"
+weight = 700
+
+[[theme.fontFaces]]
+family = "Nanum Gothic"
+url = "app/static/fonts/nanum-gothic-800.woff2"
+weight = 800

@@ -5,11 +5,18 @@ RFP RAG 서비스의 웹 프론트엔드입니다. FastAPI 백엔드(`src/api`)�
 
 ## 구성
 
-- `app.py` — 엔트리포인트 (`st.navigation`으로 페이지 등록)
-- `views/rag_query.py` — 질의 페이지 (`POST /rag`)
-- `views/upload_check.py` — 업로드 적합성 검사 페이지 (`POST /upload`)
+ChatGPT식 **단일 채팅 페이지** UI입니다(디자인 스펙 v2). 사이드바·페이지 내비게이션 없이
+`session_state.screen`으로 첫 화면(인사말+입력창+업로드) ↔ 채팅 화면을 전환합니다.
+
+- `app.py` — 엔트리포인트 (상태 초기화 + 화면 라우팅)
+- `views/home.py` — 첫 화면: 질의 입력, 문서 업로드→적합성 검사(`POST /upload`), ⚙ 설정(top_k)
+- `views/chat.py` — 채팅 화면: 대화 표시 + `POST /rag` (⚠️ 대화 이력은 표시용 — 백엔드는 단발 질의)
+- `ui.py` / `styles.py` — 공용 렌더 헬퍼 / CSS (data-testid 셀렉터만 사용,
+  `st-emotion-cache-*` 클래스 의존 금지 — 버전 업 시 파손)
 - `api_client.py` — 백엔드 HTTP 클라이언트 (httpx, 에러 → 사용자 메시지 변환)
-- `.streamlit/config.toml` — 서버 설정 (port 8501, 업로드 20MB 제한)
+- `design/` — 브랜드 디자인 자산 (토큰·로고·나눔고딕 폰트·미리보기, `design/README.md` 참고)
+- `static/fonts/` — 나눔고딕 woff2 셀프 호스팅 (`enableStaticServing`, CDN 미의존)
+- `.streamlit/config.toml` — 서버 설정 (port 8501, 업로드 20MB 제한) + 브랜드 `[theme]`
 
 ## 설치 / 실행
 

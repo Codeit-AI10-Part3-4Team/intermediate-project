@@ -1,0 +1,10 @@
+<svg viewBox="0 0 240 88" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ㅇㅇㅍ 로고">
+  <circle cx="36" cy="44" r="23" stroke="#2C3323" stroke-width="11"/>
+  <circle cx="106" cy="44" r="23" stroke="#2C3323" stroke-width="11"/>
+  <g stroke="#8C9963" stroke-width="11" stroke-linecap="round">
+    <path d="M152 21.5h74"/>
+    <path d="M152 66.5h74"/>
+    <path d="M174 21.5v45"/>
+    <path d="M204 21.5v45"/>
+  </g>
+</svg>

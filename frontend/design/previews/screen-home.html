@@ -1,0 +1,208 @@
+<!-- @dsCard group="Screens" name="첫 화면" -->
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>첫 화면 — ㅇㅇㅍ 디자인 시스템</title>
+<style>/* frontend/design/tokens.css — ㅇㅇㅍ design tokens (spec v2, 2026-07-04)
+   Canonical source. Streamlit [theme] mapping: see README.md.
+   Light theme only (brand decision). */
+:root {
+  /* color */
+  --oop-bg: #F2F2ED;            /* page background */
+  --oop-surface: #FFFFFF;       /* cards, chat input */
+  --oop-primary: #8C9963;       /* buttons & accents only — not body text */
+  --oop-primary-hover: #7A8754;
+  --oop-primary-active: #6B7849;
+  --oop-green-700: #57633F;     /* accent text on light ground */
+  --oop-green-100: #E9EBDF;     /* tint fills */
+  --oop-user-bubble: #E4E8D5;
+  --oop-ink: #2C3323;           /* body text — 11.1:1 on bg */
+  --oop-ink-muted: #6A7060;     /* captions — 4.6:1 on bg */
+  --oop-border: #DFE0D4;
+  --oop-success: #57633F;
+  --oop-success-bg: #E9EBDF;
+  --oop-danger: #B4533C;
+  --oop-danger-bg: #F6E4DF;
+  /* type */
+  --oop-font: 'Nanum Gothic', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+  --oop-fs-display: 26px;   /* greeting, weight 800 */
+  --oop-fs-h2: 20px;        /* section titles, weight 700 */
+  --oop-fs-body: 16px;      /* weight 400, line-height 1.7 */
+  --oop-fs-caption: 13px;
+  /* shape */
+  --oop-radius-lg: 18px;    /* chat input */
+  --oop-radius-md: 12px;    /* buttons, cards */
+  --oop-radius-pill: 999px;
+  --oop-shadow-sm: 0 1px 2px rgba(44, 51, 35, .06);
+  --oop-shadow-md: 0 4px 14px rgba(44, 51, 35, .10);
+}
+
+
+@font-face {
+  font-family: 'Nanum Gothic';
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/nanum-gothic-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Nanum Gothic';
+  font-weight: 700;
+  font-display: swap;
+  src: url('../fonts/nanum-gothic-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Nanum Gothic';
+  font-weight: 800;
+  font-display: swap;
+  src: url('../fonts/nanum-gothic-800.woff2') format('woff2');
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { color-scheme: light; }
+body {
+  background: var(--oop-bg); color: var(--oop-ink);
+  font-family: var(--oop-font); font-size: var(--oop-fs-body); line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: var(--oop-font); }
+:is(button, [tabindex]):focus-visible { outline: 2px solid var(--oop-primary); outline-offset: 2px; }
+
+/* buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 700; line-height: 1;
+  border-radius: var(--oop-radius-md); padding: 12px 20px; border: 0; cursor: pointer;
+}
+.btn svg { width: 17px; height: 17px; }
+.btn.primary { background: var(--oop-primary); color: #fff; }
+.btn.primary:hover { background: var(--oop-primary-hover); }
+.btn.primary.is-active { background: var(--oop-primary-active); }
+.btn.primary.is-disabled { background: #C7CCB6; cursor: default; }
+.btn.ghost { background: var(--oop-surface); color: var(--oop-ink); border: 1px solid var(--oop-border); }
+.btn.ghost:hover { border-color: var(--oop-primary); color: var(--oop-green-700); }
+.btn.ghost.is-disabled { color: var(--oop-ink-muted); opacity: .55; cursor: default; }
+.icon-btn {
+  width: 38px; height: 38px; border-radius: 50%; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--oop-surface); border: 1px solid var(--oop-border); color: var(--oop-ink);
+}
+.icon-btn:hover { border-color: var(--oop-primary); color: var(--oop-green-700); }
+.icon-btn svg { width: 18px; height: 18px; }
+
+/* chat input */
+.chat-input {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--oop-surface); border: 1.5px solid var(--oop-border);
+  border-radius: var(--oop-radius-lg); padding: 8px 8px 8px 18px;
+  box-shadow: var(--oop-shadow-sm);
+}
+.chat-input .ph { flex: 1; min-height: 40px; display: flex; align-items: center; color: #9AA08F; }
+.chat-input .txt { flex: 1; min-height: 40px; display: flex; align-items: center; }
+.chat-input.is-focus { border-color: var(--oop-primary); box-shadow: 0 0 0 3px rgba(140, 153, 99, .18); }
+.chat-input.is-disabled { opacity: .55; box-shadow: none; }
+.send {
+  width: 38px; height: 38px; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--oop-primary); color: #fff;
+  display: flex; align-items: center; justify-content: center; flex: none;
+}
+.send:hover { background: var(--oop-primary-hover); }
+.send svg { width: 17px; height: 17px; }
+
+/* chat messages */
+.bubble-user {
+  background: var(--oop-user-bubble); border-radius: 16px 16px 4px 16px;
+  padding: 12px 18px; max-width: 70%; margin-left: auto; width: fit-content;
+}
+.assistant { line-height: 1.8; }
+.assistant p + p { margin-top: 10px; }
+
+/* upload */
+.chip {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: var(--oop-surface); border: 1px solid var(--oop-border);
+  border-radius: var(--oop-radius-pill); padding: 8px 10px 8px 16px;
+}
+.chip .name { font-weight: 700; font-size: 14px; }
+.chip .size { color: var(--oop-ink-muted); font-size: 13px; }
+.chip .x {
+  width: 26px; height: 26px; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--oop-green-100); color: var(--oop-green-700);
+  display: flex; align-items: center; justify-content: center;
+}
+.chip .x:hover { background: var(--oop-danger-bg); color: var(--oop-danger); }
+.chip .x svg { width: 12px; height: 12px; }
+.badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  border-radius: var(--oop-radius-pill); padding: 7px 14px;
+  font-size: 13px; font-weight: 700; line-height: 1;
+}
+.badge .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.badge.pass { background: var(--oop-success-bg); color: var(--oop-success); }
+.badge.fail { background: var(--oop-danger-bg); color: var(--oop-danger); }
+
+/* source chunk cards */
+.src-card {
+  background: var(--oop-surface); border: 1px solid var(--oop-border);
+  border-radius: var(--oop-radius-md);
+}
+.src-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; cursor: pointer; }
+.src-head svg { width: 16px; height: 16px; color: var(--oop-ink-muted); flex: none; }
+.src-idx {
+  width: 22px; height: 22px; border-radius: 6px; flex: none; text-align: center;
+  background: var(--oop-green-100); color: var(--oop-green-700);
+  font-size: 12px; font-weight: 700; line-height: 22px;
+}
+.src-id { font-weight: 700; font-size: 14px; overflow-wrap: anywhere; }
+.src-score {
+  margin-left: auto; padding-left: 10px; color: var(--oop-ink-muted);
+  font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.src-body { border-top: 1px solid var(--oop-border); padding: 14px 16px; font-size: 14.5px; line-height: 1.85; }
+.src-meta {
+  margin-top: 12px; background: var(--oop-bg); border-radius: 8px; padding: 10px 12px;
+  font-family: ui-monospace, 'Cascadia Mono', monospace; font-size: 12px; line-height: 1.6;
+  color: var(--oop-ink-muted); overflow-x: auto;
+}
+
+/* misc */
+.spinner {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 3px solid var(--oop-green-100); border-top-color: var(--oop-primary);
+  animation: oop-spin .9s linear infinite;
+}
+@keyframes oop-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; border-top-color: var(--oop-green-700); } }
+.cap { font-size: var(--oop-fs-caption); color: var(--oop-ink-muted); }
+.greeting { font-size: var(--oop-fs-display); font-weight: 800; letter-spacing: -.2px; text-wrap: balance; }
+.greeting-sub { font-size: 17px; color: var(--oop-ink-muted); margin-top: 6px; }
+.topbar { display: flex; align-items: center; gap: 14px; padding: 16px 24px; }
+
+/* mockup frames */
+.frame-wrap { overflow-x: auto; padding-bottom: 4px; }
+.frame {
+  background: var(--oop-bg); border: 1px solid var(--oop-border); border-radius: 14px;
+  width: 960px; flex: none; display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: var(--oop-shadow-md);
+}
+.frame.half { width: 470px; }
+
+/* preview page scaffolding */
+.stage { display: flex; flex-direction: column; gap: 28px; }
+.row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.col { display: flex; flex-direction: column; gap: 12px; }
+.panel {
+  background: var(--oop-surface); border: 1px solid var(--oop-border);
+  border-radius: var(--oop-radius-md); padding: 20px;
+}
+.lbl {
+  font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--oop-ink-muted);
+}
+
+body{padding:28px}</style>
+</head>
+<body>
+<div class="stage"><div class="frame-wrap"><div class="frame" style="height:640px"><div class="topbar"><svg style="height:28px;width:auto;display:block" viewBox="0 0 240 88" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ㅇㅇㅍ 로고">  <circle cx="36" cy="44" r="23" stroke="#2C3323" stroke-width="11"/>  <circle cx="106" cy="44" r="23" stroke="#2C3323" stroke-width="11"/>  <g stroke="#8C9963" stroke-width="11" stroke-linecap="round">    <path d="M152 21.5h74"/>    <path d="M152 66.5h74"/>    <path d="M174 21.5v45"/>    <path d="M204 21.5v45"/>  </g></svg></div><div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;padding:0 40px 70px"><div style="text-align:center"><div class="greeting">ㅇㅇㅍ, RFP의 모든 것.</div><div class="greeting-sub">궁금한 것을 물어보세요</div></div><div style="width:50%;min-width:420px;display:flex;flex-direction:column;gap:16px"><div class="chat-input"><div class="ph">궁금한 것을 물어보세요</div><button class="send" aria-label="전송"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg></button></div><div class="row" style="justify-content:center;gap:10px"><button class="btn ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg> 문서 업로드</button><button class="icon-btn" aria-label="설정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M18.5 5.5l-2.1 2.1M7.6 16.4l-2.1 2.1"/></svg></button></div><div class="cap" style="text-align:center">업로드한 문서는 RFP 적합성 검사 후 즉시 폐기되며 서버에 저장되지 않습니다</div></div></div></div></div><div class="row" style="align-items:flex-start;gap:20px"><div class="frame half" style="height:430px"><div class="topbar"><svg style="height:24px;width:auto;display:block" viewBox="0 0 240 88" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ㅇㅇㅍ 로고">  <circle cx="36" cy="44" r="23" stroke="#2C3323" stroke-width="11"/>  <circle cx="106" cy="44" r="23" stroke="#2C3323" stroke-width="11"/>  <g stroke="#8C9963" stroke-width="11" stroke-linecap="round">    <path d="M152 21.5h74"/>    <path d="M152 66.5h74"/>    <path d="M174 21.5v45"/>    <path d="M204 21.5v45"/>  </g></svg></div><div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:20px;padding:0 30px 40px"><div class="row" style="justify-content:center;gap:12px"><div class="spinner" style="width:24px;height:24px"></div><span style="font-size:22px;font-weight:800">문서를 검사 중입니다</span></div><div style="align-self:stretch"><div class="chat-input"><div class="ph">궁금한 것을 물어보세요</div><button class="send" aria-label="전송"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg></button></div></div><button class="btn ghost is-disabled" style="align-self:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg> 문서 업로드</button></div></div><div class="frame half" style="height:430px"><div class="topbar"><svg style="height:24px;width:auto;display:block" viewBox="0 0 240 88" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ㅇㅇㅍ 로고">  <circle cx="36" cy="44" r="23" stroke="#2C3323" stroke-width="11"/>  <circle cx="106" cy="44" r="23" stroke="#2C3323" stroke-width="11"/>  <g stroke="#8C9963" stroke-width="11" stroke-linecap="round">    <path d="M152 21.5h74"/>    <path d="M152 66.5h74"/>    <path d="M174 21.5v45"/>    <path d="M204 21.5v45"/>  </g></svg></div><div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:20px;padding:0 30px 40px"><div style="text-align:center"><div class="greeting" style="font-size:22px">ㅇㅇㅍ, RFP의 모든 것.</div><div class="greeting-sub" style="font-size:15px">궁금한 것을 물어보세요</div></div><div style="align-self:stretch"><div class="chat-input"><div class="ph">궁금한 것을 물어보세요</div><button class="send" aria-label="전송"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg></button></div></div><div class="col" style="align-items:center;gap:10px"><span class="chip"><span class="name">2026_스마트행정_RFP.pdf</span><span class="size">1.8MB</span><button class="x" aria-label="업로드 취소"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button></span><span class="badge pass"><span class="dot"></span>RFP로 적합 · score 0.86</span></div></div></div></div></div>
+</body>
+</html>
