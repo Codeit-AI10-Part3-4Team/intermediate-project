@@ -100,3 +100,32 @@ def test_format_answer_preserves_line_breaks() -> None:
     assert _format_answer("가\n나") == "가  \n나"
     # 백엔드가 literal "\n"(백슬래시+n)을 보내는 경우도 동일 처리
     assert _format_answer("가\\n나") == "가  \n나"
+
+
+def test_parse_related_questions_strips_numbering() -> None:
+    from views.chat import _parse_related_questions
+
+    assert _parse_related_questions("1. 첫 질문?\\n2) 둘째 질문?\n\n셋째") == [
+        "첫 질문?",
+        "둘째 질문?",
+        "셋째",
+    ]
+    assert _parse_related_questions("   ") == []
+
+
+def test_related_question_button_submits_query(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(views.chat, "RagApiClient", _FakeRagApiClient)
+
+    at = _boot()
+    at.chat_input[0].set_value("첫 질문").run()
+
+    # 답변(usage.related_questions)에서 만들어진 제안 버튼 클릭 → 재질의
+    button = at.button(key="related_q_1_0")
+    assert button.label == "후속 질문?"
+    button.click().run()
+
+    assert not at.exception
+    messages = at.session_state["messages"]
+    assert [m["role"] for m in messages] == ["user", "assistant", "user", "assistant"]
+    assert messages[2]["content"] == "후속 질문?"  # numbering 제거된 본문으로 질의
+    assert at.session_state["pending_query"] is None
