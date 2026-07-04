@@ -10,7 +10,6 @@ import threading
 from typing import Any
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 from api_client import ApiClientError, RagApiClient
 from styles import CHAT_CSS
@@ -41,7 +40,6 @@ def render() -> None:
                 '<div class="oop-genwrap"><span class="oop-spinner"></span>'
                 '<span class="oop-cap">답변 생성 중…</span></div>'
             )
-            _scroll_last_user_message_to_top()
             _pending_worker()
 
     # Top-level call keeps the input pinned to the bottom of the page.
@@ -162,20 +160,9 @@ def _parse_related_questions(raw: str) -> list[str]:
     return questions
 
 
-def _scroll_last_user_message_to_top() -> None:
-    # Spec 2-⑥: scroll the just-sent user bubble to the top. Streamlit has no
-    # scroll API; this same-origin iframe hack is the agreed fallback risk —
-    # if a Streamlit upgrade breaks it, delete this call (keep-bottom behavior).
-    components.html(
-        """
-        <script>
-        const msgs = window.parent.document.querySelectorAll(
-            '[data-testid="stChatMessage"]');
-        const users = Array.from(msgs).filter((m) =>
-            m.querySelector('[data-testid="stChatMessageAvatarUser"]'));
-        const last = users[users.length - 1];
-        if (last) last.scrollIntoView({behavior: "smooth", block: "start"});
-        </script>
-        """,
-        height=0,
-    )
+# NOTE: spec 2-⑥'s "scroll the user bubble to the top" iframe hack
+# (st.components.v1.html) was removed — the agreed fallback. On the VM
+# (Streamlit 1.58 + service PYTHONPATH mixing another venv's protobuf) the
+# custom-component serialization crashed the whole process on every question,
+# resetting all sessions to the home screen. Do not reintroduce
+# streamlit.components.v1 here without verifying it on the deploy target.
