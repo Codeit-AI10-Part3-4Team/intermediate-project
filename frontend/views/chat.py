@@ -79,7 +79,16 @@ def _pending_worker() -> None:
         )
     ss.pending_query = None
     ss.pending_call = None
-    st.rerun(scope="app")
+    _rerun_app()
+
+
+def _rerun_app() -> None:
+    """Full-app rerun that also works on Streamlit versions without the
+    scope kwarg (RerunException is control flow and passes through)."""
+    try:
+        st.rerun(scope="app")
+    except TypeError:
+        st.rerun()
 
 
 def start_pending(query: str) -> None:
