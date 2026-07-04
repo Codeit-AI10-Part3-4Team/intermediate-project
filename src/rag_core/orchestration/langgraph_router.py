@@ -766,7 +766,7 @@ def generation_node(state: RagState) -> dict:
 # ──────────────────────────────────────────────
 
 
-def build_graph(chroma_dir: str = CHROMA_DIR_DEFAULT):
+def build_graph(chroma_dir: str = CHROMA_DIR_DEFAULT, use_checkpointer: bool = True):
     """
     StateGraph 조립 + MemorySaver 체크포인터로 컴파일.
 
@@ -821,8 +821,10 @@ def build_graph(chroma_dir: str = CHROMA_DIR_DEFAULT):
     graph.add_edge("multiturn", "single_doc_fact")
     graph.add_edge("generation", END)
 
-    memory = MemorySaver()
-    return graph.compile(checkpointer=memory)
+    # 체크포인터는 멀티턴(session_id)용. 불필요하면 붙이지 않아 상태 누적을 원천 차단.
+    if use_checkpointer:
+        return graph.compile(checkpointer=MemorySaver())
+    return graph.compile()
 
 
 # ──────────────────────────────────────────────
