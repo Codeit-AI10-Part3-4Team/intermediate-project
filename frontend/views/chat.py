@@ -5,6 +5,8 @@
 # then a rerun appends the answer. Each /rag call is independent — the visible
 # history is display-only (the backend has no conversation memory yet).
 
+from typing import Any
+
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -24,12 +26,12 @@ def render() -> None:
             with st.chat_message(message["role"]):
                 if message.get("is_error"):
                     st.error(message["content"])
+                elif message["role"] == "assistant":
+                    st.markdown(_format_answer(message["content"]))
                 else:
                     st.markdown(message["content"])
                 render_sources(message.get("sources") or [])
-                usage = message.get("usage") or {}
-                if usage:
-                    st.caption(f"usage: {usage}")
+                _render_related_questions(message.get("usage") or {})
         if pending:
             st.html(
                 '<div class="oop-genwrap"><span class="oop-spinner"></span>'
@@ -44,10 +46,19 @@ def render() -> None:
     if prompt and prompt.strip() and pending is None:
         st.session_state.messages.append({"role": "user", "content": prompt.strip()})
         st.session_state.pending_query = prompt.strip()
+        st.session_state.pending_dispatched = False
         st.rerun()
 
     if pending:
-        _answer_pending_query(pending)
+        if st.session_state.pending_dispatched:
+            _answer_pending_query(pending)
+        else:
+            # Paint the chat screen first and make the blocking call on the
+            # next run. A blocking call in the same run as a screen switch
+            # keeps the previous screen's widgets on screen as dimmed stale
+            # elements for the whole LLM latency.
+            st.session_state.pending_dispatched = True
+            st.rerun()
 
 
 def _answer_pending_query(pending: str) -> None:
@@ -67,7 +78,31 @@ def _answer_pending_query(pending: str) -> None:
             {"role": "assistant", "content": e.message, "is_error": True}
         )
     st.session_state.pending_query = None
+    st.session_state.pending_dispatched = False
     st.rerun()
+
+
+def _format_answer(text: str) -> str:
+    """Keep LLM line breaks readable in markdown.
+
+    Markdown collapses single newlines, and backend strings sometimes carry
+    literal backslash-n sequences — normalize both to hard breaks.
+    """
+    text = text.replace("\\n", "\n")
+    return text.replace("\n", "  \n")
+
+
+def _render_related_questions(usage: dict[str, Any]) -> None:
+    """Show follow-up question suggestions from the backend, if any.
+
+    The rest of `usage` (thread_id, question_type, style_prompt, ...) is
+    internal metadata the UI cannot act on, so it is not displayed.
+    """
+    related = usage.get("related_questions")
+    if not isinstance(related, str) or not related.strip():
+        return
+    with st.expander("관련 질문 제안"):
+        st.markdown(_format_answer(related))
 
 
 def _scroll_last_user_message_to_top() -> None:

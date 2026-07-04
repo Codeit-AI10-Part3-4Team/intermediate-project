@@ -71,6 +71,7 @@ def render() -> None:
     if query and query.strip():
         st.session_state.messages.append({"role": "user", "content": query.strip()})
         st.session_state.pending_query = query.strip()
+        st.session_state.pending_dispatched = False
         st.session_state.screen = "chat"
         st.rerun()
 

@@ -23,6 +23,7 @@ def _init_state() -> None:
     ss.setdefault("screen", "home")  # "home" | "chat"
     ss.setdefault("messages", [])  # {"role", "content", "sources", "usage", "is_error"}
     ss.setdefault("pending_query", None)  # query awaiting a /rag response
+    ss.setdefault("pending_dispatched", False)  # chat screen painted before the call
     ss.setdefault("top_k", DEFAULT_TOP_K)
     ss.setdefault("checked_file_key", None)  # "<name>:<size>" of the checked upload
     ss.setdefault("suitability", None)  # SuitabilityResult dict or {"error": str}
