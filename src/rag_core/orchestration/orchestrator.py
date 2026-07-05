@@ -76,10 +76,14 @@ class LangGraphOrchestrator:
             thread_id = ""  # 일회성 요청은 세션 추적 안 함
             config = {}
 
-        state_input: dict = {
-            "question": query,
-            "history": history or [],
-        }
+        state_input: dict = {"question": query}
+        # 멀티턴(session_id)일 때는 체크포인터에 누적된 history를 이어받아야 하므로
+        # state_input에 history를 넣지 않는다(넣으면 매 턴 빈 리스트로 덮어써짐).
+        # 호출자가 history를 명시적으로 넘긴 경우, 또는 일회성 요청일 때만 설정.
+        if history is not None:
+            state_input["history"] = history
+        elif not session_id:
+            state_input["history"] = []
         if company_info:
             state_input["company_info"] = company_info
 
