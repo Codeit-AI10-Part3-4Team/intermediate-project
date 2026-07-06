@@ -119,6 +119,18 @@ QuestionType = Literal[
 # 1차 분류 — 키워드 기반
 # ──────────────────────────────────────────────
 
+_EXTREMUM_KEYWORDS = [
+    "가장 큰",
+    "가장 작은",
+    "가장 높은",
+    "가장 낮은",
+    "최대 예산",
+    "최소 예산",
+    "최고 예산",
+    "최저 예산",
+    "예산이 제일",
+    "금액이 가장",
+]
 _MULTI_DOC_KEYWORDS = ["비교", "vs", "VS", "차이", "각각", "두 사업", "여러 사업", "종합"]
 _GUARDRAIL_KEYWORDS = ["날씨", "주식", "오늘 뉴스", "너는 누구", "기술점수 몇 점", "당첨 확률"]
 _MULTITURN_KEYWORDS = ["그 사업", "그것", "이전 질문", "방금", "그럼"]
@@ -150,6 +162,8 @@ def classify_question_keyword(question: str, has_history: bool) -> QuestionType:
     q = question.strip()
     if any(kw in q for kw in _GUARDRAIL_KEYWORDS):
         return "guardrail"
+    if any(kw in q for kw in _EXTREMUM_KEYWORDS):
+        return "metadata_scan"
     if any(kw in q for kw in _REWRITE_KEYWORDS):
         return "rewrite"
     if any(kw in q for kw in _BID_ANALYSIS_KEYWORDS):
@@ -695,6 +709,64 @@ def rewrite_node(state: RagState) -> dict:
     return {"answer": converted, "history": history_new}
 
 
+def metadata_scan_node(state: RagState) -> dict:
+    """전체 metadata 스캔으로 사업금액 최대/최솟값 문서 찾기."""
+    question = state.get("rewritten_question", state["question"])
+    find_max = any(kw in question for kw in ["가장 큰", "최대", "최고", "가장 높은", "제일 큰"])
+
+    try:
+        retriever = _get_active_retriever(state)
+        collection = retriever.vectorstore._collection
+        results = collection.get(include=["metadatas"])
+
+        MIN_THRESHOLD = 1_000_000
+        seen_docs = {}
+        for meta in results.get("metadatas", []):
+            if not meta:
+                continue
+            amount = meta.get("사업금액", 0)
+            doc_id = meta.get("doc_id", "")
+            if amount and amount >= MIN_THRESHOLD and doc_id not in seen_docs:
+                seen_docs[doc_id] = meta
+
+        if not seen_docs:
+            return {
+                "retrieved_chunks": [],
+                "retrieved_sources": [],
+                "answer": "사업금액 정보를 찾을 수 없습니다.",
+            }
+
+        def key_func(item):
+            return item[1]["사업금액"]
+
+        _, result_meta = (
+            max(seen_docs.items(), key=key_func)
+            if find_max
+            else min(seen_docs.items(), key=key_func)
+        )
+
+        label = "가장 큰" if find_max else "가장 작은"
+        answer = (
+            f"예산이 {label} 사업은 다음과 같습니다.\n\n"
+            f"- 사업명: {result_meta.get('사업명', '정보 없음')}\n"
+            f"- 발주기관: {result_meta.get('발주기관', '정보 없음')}\n"
+            f"- 사업금액: {result_meta.get('사업금액', 0):,}원"
+        )
+        return {
+            "retrieved_chunks": [],
+            "retrieved_sources": [],
+            "answer": answer,
+            "question_type": "metadata_scan",
+        }
+    except Exception as e:
+        print(f"[MetadataScan] 오류: {e}")
+        return {
+            "retrieved_chunks": [],
+            "retrieved_sources": [],
+            "answer": f"metadata 스캔 중 오류가 발생했습니다: {e}",
+        }
+
+
 def guardrail_node(state: RagState) -> dict:
     """가드레일: Retrieval 생략, 고정 응답 반환."""
     return {
@@ -794,6 +866,7 @@ def build_graph(chroma_dir: str = CHROMA_DIR_DEFAULT, use_checkpointer: bool = T
     graph.add_node("rewrite", rewrite_node)
     graph.add_node("guardrail", guardrail_node)
     graph.add_node("generation", generation_node)
+    graph.add_node("metadata_scan", metadata_scan_node)
 
     graph.set_entry_point("query_rewriting")
     graph.add_edge("query_rewriting", "router")
@@ -807,6 +880,7 @@ def build_graph(chroma_dir: str = CHROMA_DIR_DEFAULT, use_checkpointer: bool = T
             "multi_doc_compare": "multi_doc_compare",
             "multi_doc_summary": "multi_doc_summary",
             "multiturn": "multiturn",
+            "metadata_scan": "metadata_scan",
             "bid_analysis": "bid_analysis",
             "rewrite": "rewrite",
             "guardrail": "guardrail",
@@ -822,6 +896,7 @@ def build_graph(chroma_dir: str = CHROMA_DIR_DEFAULT, use_checkpointer: bool = T
     graph.add_edge("multi_doc_summary", "generation")
     graph.add_edge("multiturn", "single_doc_fact")
     graph.add_edge("generation", END)
+    graph.add_edge("metadata_scan", END)
 
     # 체크포인터는 멀티턴(session_id)용. 불필요하면 붙이지 않아 상태 누적을 원천 차단.
     if use_checkpointer:

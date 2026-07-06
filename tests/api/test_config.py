@@ -8,7 +8,7 @@ def test_defaults():
     s = Settings(_env_file=None)
 
     assert s.use_mock is True
-    assert s.chroma_dir == "/data/vector_db/vector_db_v9"
+    assert s.chroma_dir == "/data/vector_db/vector_db_v10"
     assert s.log_level == "INFO"
 
 
