@@ -116,5 +116,6 @@ class LangGraphOrchestrator:
                 "history_length": len(history_out),
                 "related_questions": result.get("related_questions", ""),
                 "style_prompt": result.get("style_prompt", ""),
+                "bid_analysis": result.get("bid_analysis"),
             },
         )
