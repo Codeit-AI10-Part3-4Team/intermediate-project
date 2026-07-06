@@ -44,9 +44,17 @@ class RagApiClient:
         self.timeout_seconds = timeout_seconds
         self._transport = transport
 
-    def query_rag(self, query: str, top_k: int) -> dict[str, Any]:
-        """POST /rag -> RagResponse dict (answer, sources, usage)."""
-        return self._post("/rag", json={"query": query, "top_k": top_k})
+    def query_rag(self, query: str, top_k: int, session_id: str | None = None) -> dict[str, Any]:
+        """POST /rag -> RagResponse dict (answer, sources, usage).
+
+        session_id ties a request to a multi-turn thread on the backend (needed
+        for follow-ups like 문체 변환 that reference the previous answer). Sent
+        only when set so one-shot callers keep the stateless path.
+        """
+        payload: dict[str, Any] = {"query": query, "top_k": top_k}
+        if session_id:
+            payload["session_id"] = session_id
+        return self._post("/rag", json=payload)
 
     def check_upload(self, filename: str, content: bytes, content_type: str) -> dict[str, Any]:
         """POST /upload (multipart) -> SuitabilityResult dict."""

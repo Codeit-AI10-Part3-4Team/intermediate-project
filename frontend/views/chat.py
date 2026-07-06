@@ -2,8 +2,10 @@
 # Second screen (spec v2): message history + bottom-pinned input. While a query
 # is pending, the input renders disabled and a centered spinner shows; the
 # blocking API call runs after both are on screen (progressive rendering),
-# then a rerun appends the answer. Each /rag call is independent — the visible
-# history is display-only (the backend has no conversation memory yet).
+# then a rerun appends the answer. All turns of one conversation share
+# st.session_state.session_id so the backend keeps multi-turn history (follow-ups
+# like 문체 변환 reference the previous answer). The id is minted on the first
+# turn (app._route_home_submit) and cleared on 첫 화면으로 (ui.render_header).
 #
 # ⚠️ The pending flow is DELIBERATELY synchronous (blocking call at the end of
 # the main run). Two previous designs crashed Streamlit 1.58 on the VM with a
@@ -68,7 +70,11 @@ def render() -> None:
 def _answer_pending_query(pending: str) -> None:
     """Blocking POST /rag; appends the assistant message (or error) and reruns."""
     try:
-        result = RagApiClient().query_rag(query=pending, top_k=st.session_state.top_k)
+        result = RagApiClient().query_rag(
+            query=pending,
+            top_k=st.session_state.top_k,
+            session_id=st.session_state.session_id,
+        )
         st.session_state.messages.append(
             {
                 "role": "assistant",

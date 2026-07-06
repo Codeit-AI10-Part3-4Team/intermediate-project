@@ -77,6 +77,7 @@ def render_header(show_back: bool) -> None:
                 st.session_state.screen = "home"
                 st.session_state.messages = []
                 st.session_state.pending_query = None
+                st.session_state.session_id = None  # next conversation gets a fresh one
                 st.rerun()
 
 
