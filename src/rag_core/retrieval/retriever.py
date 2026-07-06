@@ -21,7 +21,7 @@ class Retriever:
     def __init__(
         self,
         embedding_model_name: str = "bge-m3",
-        chroma_dir: str = "./data/vector_db/vector_db_v4",
+        chroma_dir: str = "./data/vector_db/vector_db_v9",
     ):
         self.embedding_model = load_embedding_model(embedding_model_name)
         self.vectorstore = Chroma(
