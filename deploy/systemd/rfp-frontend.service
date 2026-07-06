@@ -17,6 +17,9 @@
 Description=RFP RAG Frontend (Streamlit, 0.0.0.0:8501)
 After=network.target rfp-api.service
 Wants=rfp-api.service
+# 부팅 크래시 무한 재시작 방지 (rfp-api.service와 동일 정책).
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple

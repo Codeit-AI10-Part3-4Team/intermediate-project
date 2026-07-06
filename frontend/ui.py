@@ -1,7 +1,9 @@
 # frontend/ui.py
-# Render helpers shared by both screens (header, source chunks).
+# Render helpers shared by both screens (header, source chunks, status banner).
 
 import functools
+import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -19,6 +21,31 @@ CHECKING_HTML = (
     '<div class="oop-greeting oop-checking"><span class="oop-spinner"></span>'
     "문서를 검사 중입니다</div>"
 )
+
+
+def render_status_banner() -> None:
+    """배포 상태(status.json)가 알리는 상황을 사용자 배너로 전파.
+
+    파일은 scripts/deploy_vm.sh가 기록한다 — 경로 계약은 그쪽 STATE_DIR 기본값과
+    일치해야 하며, 저장소 밖이라 롤백돼도 유지된다. 파일이 없거나 형식이 깨졌으면
+    조용히 넘어간다(배너는 부가 기능이라 본 서비스 렌더를 막으면 안 됨).
+    """
+    path = os.environ.get(
+        "RFP_STATUS_FILE", str(Path.home() / ".local/state/rfp-deploy/status.json")
+    )
+    try:
+        status = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    state = status.get("state")
+    if state == "rolled_back":
+        st.warning(
+            "최신 업데이트 반영에 실패하여 이전 안정 버전으로 운영 중입니다. "
+            "일부 최신 기능이 보이지 않을 수 있습니다.",
+            icon="⚠️",
+        )
+    elif state in ("degraded", "down"):
+        st.warning("서비스 점검 중입니다 — 일부 기능이 불안정할 수 있습니다.", icon="🛠️")
 
 
 @functools.cache
