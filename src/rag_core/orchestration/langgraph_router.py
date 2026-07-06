@@ -500,6 +500,11 @@ def bid_analysis_node(state: RagState) -> dict:
     # LLM 호출
     try:
         raw = call_ollama(full_prompt).strip()
+        # hallucination 방지 후처리 (지우님 pipeline.py 규칙 적용)
+        from rag_core.llm.pipeline import postprocess_exaone, postprocess_answer_format
+
+        _post = postprocess_exaone(raw)
+        raw = postprocess_answer_format(_post["processed"])
 
         import re as _re
 
