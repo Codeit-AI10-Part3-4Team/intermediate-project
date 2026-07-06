@@ -15,7 +15,7 @@ Retriever(Hybrid RRF) + Ollama(exaone3.5:7.8b) 실제 연동 버전.
 
 사용법:
     from rag_core.orchestration.langgraph_router import build_graph
-    app = build_graph(chroma_dir="/data/vector_db/vector_db_v4")
+    app = build_graph(chroma_dir="/data/vector_db/vector_db_v9")
     result = app.invoke(
         {"question": "이 사업의 예산은?", "history": []},
         config={"configurable": {"thread_id": "session_1"}}
@@ -72,7 +72,7 @@ def _to_docs(retrieved: list) -> list:
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "exaone3.5:7.8b")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))
-CHROMA_DIR_DEFAULT = os.getenv("CHROMA_DIR", "/data/vector_db/vector_db_v4")
+CHROMA_DIR_DEFAULT = os.getenv("CHROMA_DIR", "/data/vector_db/vector_db_v9")
 TOP_K_DEFAULT = int(os.getenv("TOP_K", "10"))
 TOP_K_REQUIREMENT = int(os.getenv("TOP_K_REQUIREMENT", "15"))
 
@@ -766,7 +766,7 @@ def build_graph(chroma_dir: str = CHROMA_DIR_DEFAULT, use_checkpointer: bool = T
     StateGraph 조립 + MemorySaver 체크포인터로 컴파일.
 
     Args:
-        chroma_dir: ChromaDB 경로 (기본값: /data/vector_db/vector_db_v4)
+        chroma_dir: ChromaDB 경로 (기본값: /data/vector_db/vector_db_v9)
 
     Returns:
         컴파일된 LangGraph 앱
