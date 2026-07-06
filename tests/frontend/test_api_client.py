@@ -26,11 +26,21 @@ def test_query_rag_success() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/rag"
         body = json.loads(request.content)
+        # session_id 미지정 시 페이로드에 넣지 않아 stateless 경로를 유지한다
         assert body == {"query": "질문", "top_k": 3}
         return httpx.Response(200, json=payload)
 
     result = _make_client(handler).query_rag(query="질문", top_k=3)
     assert result == payload
+
+
+def test_query_rag_sends_session_id_when_set() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert body == {"query": "q", "top_k": 5, "session_id": "abc123"}
+        return httpx.Response(200, json={"answer": "a", "sources": [], "usage": {}})
+
+    _make_client(handler).query_rag(query="q", top_k=5, session_id="abc123")
 
 
 def test_check_upload_sends_multipart() -> None:

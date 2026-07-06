@@ -3,6 +3,8 @@
 # Single-page chat UI (design spec v2): "home" greeting screen <-> "chat" screen,
 # routed via session_state. No st.navigation/sidebar by design.
 
+import uuid
+
 import streamlit as st
 
 from styles import BASE_CSS
@@ -24,6 +26,12 @@ def _init_state() -> None:
     ss.setdefault("screen", "home")  # "home" | "chat"
     ss.setdefault("messages", [])  # {"role", "content", "sources", "usage", "is_error"}
     ss.setdefault("pending_query", None)  # query awaiting a /rag response
+    # Multi-turn session id sent on every /rag call of one conversation. The
+    # backend has no memory until it receives a session_id (a request without
+    # one returns thread_id="" and is not recorded), so the client must mint it
+    # up front — echoing back a response thread_id would miss turn 1 and break
+    # follow-ups like 문체 변환. Reset (None) on 첫 화면으로 in render_header.
+    ss.setdefault("session_id", None)
     ss.setdefault("top_k", DEFAULT_TOP_K)
     ss.setdefault("checked_file_key", None)  # "<name>:<size>" of the checked upload
     ss.setdefault("suitability", None)  # SuitabilityResult dict or {"error": str}
@@ -40,6 +48,8 @@ def _route_home_submit() -> None:
     query = st.session_state.get("home_input")
     if st.session_state.screen != "home" or not query or not query.strip():
         return
+    # New conversation starts here — mint the session id its turns will share.
+    st.session_state.session_id = uuid.uuid4().hex
     st.session_state.messages.append({"role": "user", "content": query.strip()})
     st.session_state.pending_query = query.strip()
     st.session_state.screen = "chat"

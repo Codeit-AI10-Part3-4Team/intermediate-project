@@ -21,19 +21,21 @@ APP_PATH = str(Path(__file__).parents[2] / "frontend" / "app.py")
 
 
 class _FakeRagApiClient:
-    """query_rag만 흉내 내는 대역 — 성공 응답 고정."""
+    """query_rag만 흉내 내는 대역 — 성공 응답 고정. 받은 session_id를 기록한다."""
 
     base_url = "http://testserver"
+    seen_session_ids: list[str | None] = []
 
-    def query_rag(self, query: str, top_k: int) -> dict[str, Any]:
+    def query_rag(self, query: str, top_k: int, session_id: str | None = None) -> dict[str, Any]:
         assert query
         assert 1 <= top_k <= 50
+        type(self).seen_session_ids.append(session_id)
         return {
             "answer": "테스트 답변\n- 첫 항목\n- 둘째 항목",
             "sources": [{"chunk": {"chunk_id": "c1", "text": "본문"}, "score": 0.9}],
-            # 실 백엔드처럼 usage에 내부 메타데이터가 섞여 오는 경우
+            # 실 백엔드처럼 usage에 내부 메타데이터가 섞여 오는 경우 (thread_id는 에코백)
             "usage": {
-                "thread_id": "",
+                "thread_id": session_id or "",
                 "question_type": "single_doc_fact",
                 "related_questions": "1. 후속 질문?\\n2. 다른 질문?",
                 "style_prompt": "(UI 미지원 — 표시되면 안 됨)",
@@ -79,7 +81,9 @@ def test_api_error_becomes_error_message(monkeypatch: pytest.MonkeyPatch) -> Non
     from api_client import ApiClientError
 
     class _FailingClient(_FakeRagApiClient):
-        def query_rag(self, query: str, top_k: int) -> dict[str, Any]:
+        def query_rag(
+            self, query: str, top_k: int, session_id: str | None = None
+        ) -> dict[str, Any]:
             raise ApiClientError("연결 실패")
 
     monkeypatch.setattr(views.chat, "RagApiClient", _FailingClient)
@@ -91,6 +95,39 @@ def test_api_error_becomes_error_message(monkeypatch: pytest.MonkeyPatch) -> Non
     messages = at.session_state["messages"]
     assert messages[1]["is_error"] is True
     assert messages[1]["content"] == "연결 실패"
+
+
+def test_session_id_minted_and_shared_across_turns(monkeypatch: pytest.MonkeyPatch) -> None:
+    _FakeRagApiClient.seen_session_ids = []
+    monkeypatch.setattr(views.chat, "RagApiClient", _FakeRagApiClient)
+
+    at = _boot()
+    # 홈 제출(1턴) → 세션 생성 후 전송
+    at.chat_input[0].set_value("첫 질문").run()
+    sid = at.session_state["session_id"]
+    assert sid  # 1턴부터 세션이 있어야 문체 변환 같은 후속이 이전 답변을 참조할 수 있다
+
+    # 채팅 화면에서 후속(2턴) → 같은 세션 유지
+    at.chat_input[0].set_value("공문서체로 변환해줘").run()
+    assert at.session_state["session_id"] == sid
+    assert _FakeRagApiClient.seen_session_ids == [sid, sid]  # 두 턴 모두 같은 id 전송
+
+
+def test_back_to_home_resets_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    _FakeRagApiClient.seen_session_ids = []
+    monkeypatch.setattr(views.chat, "RagApiClient", _FakeRagApiClient)
+
+    at = _boot()
+    at.chat_input[0].set_value("첫 질문").run()
+    first_sid = at.session_state["session_id"]
+
+    at.button(key="back_btn").click().run()
+    assert at.session_state["session_id"] is None  # 첫 화면 복귀 시 세션 리셋
+    assert at.session_state["messages"] == []
+
+    # 새 대화는 다른 세션 id를 받는다
+    at.chat_input[0].set_value("새 대화").run()
+    assert at.session_state["session_id"] not in (None, first_sid)
 
 
 def test_format_answer_preserves_line_breaks() -> None:
