@@ -76,7 +76,7 @@ sudo systemctl restart rfp-api
 
 > ⚠️ **`.env`로 전달되는 것은 `APP_` 접두어의 Settings 필드뿐입니다** (pydantic-settings).
 > Chroma 경로는 Settings 통로로 배선돼 있어 **`.env`의 `APP_CHROMA_DIR`로 재정의**할 수
-> 있습니다(기본 `/data/vector_db/vector_db_v4`). 반면 `OLLAMA_URL`/`OLLAMA_BASE_URL` 등은
+> 있습니다(기본은 `src/api/config.py`의 `chroma_dir` — 현재 `/data/vector_db/vector_db_v9`). 반면 `OLLAMA_URL`/`OLLAMA_BASE_URL` 등은
 > 아직 코드가 `os.getenv()`로 직접 읽으므로 `.env`가 아니라 `rfp-api.service`에
 > `Environment=...` 줄을 추가하고 유닛을 재배포해야 합니다(기본 `http://127.0.0.1:11434`).
 
@@ -87,7 +87,10 @@ sudo systemctl restart rfp-api
    ~/ai/bin/python -c "import langgraph, chromadb, sentence_transformers; print('ok')"
    # 실패 시: ~/ai/bin/python -m pip install -e ".[retrieval,orchestration]"
    ```
-2. **벡터 DB**: Chroma 경로 존재 확인 — `ls /data/vector_db/vector_db_v4`
+2. **벡터 DB**: Chroma 경로 존재 확인 — `ls /data/vector_db/<버전>`.
+   ⚠️ **새 버전을 `cp`/tar로 새로 넣었다면 반드시** `scripts/fix_vectordb_acl.sh /data/vector_db/<버전>`을
+   실행하세요. 복사로 생성된 파일은 ACL mask가 read-only로 클램프돼 있어(아래 트러블슈팅 참고)
+   그대로 두면 `rfp-api`가 `readonly database`로 기동 즉사합니다.
 3. **Ollama**: `systemctl is-active ollama` + `ollama list`에 `exaone3.5:7.8b`
 4. `/upload`(적합성 검사)는 이 전환과 무관하게 **여전히 Mock**입니다.
 
@@ -108,7 +111,7 @@ sudo systemctl restart rfp-api
 | 증상 | 원인 | 조치 |
 | --- | --- | --- |
 | 기동 즉사 `ModuleNotFoundError` | systemd는 빈 환경으로 시작 — 공용 venv 빌림 배선 누락 | 유닛의 `Environment=PYTHONPATH=...` 확인 (rfp-api.service 주석 참고) |
-| 기동 즉사 `attempt to write a readonly database` | vector_db 디렉토리에 서비스 계정 쓰기 권한 없음 (새 DB 복사 시 소유권 사고 — 2026-07-06 v9 사례). Chroma sqlite는 파일과 **디렉토리 모두** 쓰기 필요 | `sudo chown -R <서비스계정>: /data/vector_db/<버전>` + `chmod -R u+rwX` 후 재시작 |
+| 기동 즉사 `attempt to write a readonly database` | 새 vector_db를 `cp`/tar로 넣으면 파일 644·디렉토리 755로 생성되고, POSIX ACL이 그 그룹 비트로 **mask를 r로 클램프** → 부모의 default ACL(`group:vectordb:rwx`)이 상속돼도 실효 read-only가 됨(2026-07-06 v9 사례). 소유권·마운트 문제 아님 | `scripts/fix_vectordb_acl.sh /data/vector_db/<버전>` 실행 후 `sudo systemctl restart rfp-api`. (원인 판별: `getfacl <경로>`에 `mask::r--`/`#effective:r--`가 보이면 이 케이스. chown이 아니라 mask를 올려야 함) |
 | `merge --ff-only` 실패 | VM 체크아웃에 로컬 커밋/브랜치 이탈 | `git log origin/main..HEAD`로 확인 — VM 커밋은 원칙 위반, 브랜치로 빼서 push |
 | 502/504 응답 | Ollama 미기동·타임아웃 (요청 추적 로깅 PR 이후 구분됨) | `systemctl status ollama`, `ollama list` |
 | 기동이 오래 걸림 | `use_mock=false` 첫 기동의 임베딩 모델 로드 | 정상 — 120초까지 대기 |
