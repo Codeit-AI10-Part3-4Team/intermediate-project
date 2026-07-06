@@ -39,6 +39,7 @@ from rag_core.llm.pipeline import (
     score_prediction_guardrail_answer,
     split_comparison_entities,
     retrieve_multi_query,
+    dedup_docs_by_doc_id,
 )
 from rag_core.prompts.builder import build_prompt as _builder_build_prompt
 from rag_core.exceptions import LLMConnectionError, LLMTimeoutError
@@ -381,6 +382,7 @@ def multi_doc_compare_node(state: RagState) -> dict:
         if not queries:
             queries = [question]
         docs = retrieve_multi_query(queries, retriever, k_each=TOP_K_DEFAULT, max_chunks_per_doc=2)
+        docs = dedup_docs_by_doc_id(docs)
         chunks = [d.page_content for d in docs]
         # retrieve_multi_query는 RRF 내부 점수를 밖으로 반환하지 않으므로,
         # 반환 순서(관련도 내림차순) 기반으로 표시용 순위 점수를 부여한다.
