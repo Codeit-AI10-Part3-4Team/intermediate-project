@@ -258,6 +258,74 @@ def retrieve_multi_query(
     return all_docs
 
 
+def retrieve_multi_query_majority(
+    queries: list,
+    retriever,
+    k_each: int = 10,
+    max_chunks_per_doc: int = 2,
+    top_n_docs: int = 1,
+) -> list:
+    """다중문서 비교/종합 질문 전용: 쿼리별 top-k 후보 중 doc_id 다수결로
+    노이즈 문서를 걸러냅니다.
+
+    retrieve_multi_query()는 max_chunks_per_doc로 "한 문서가 청크를 몇 개
+    가져갈지"는 제한하지만, "애초에 몇 개의 서로 다른 문서가 섞여 들어올지"는
+    제한하지 않습니다. 실제로 split_comparison_entities()가 만든 서브쿼리
+    (예: "한국철도공사 예약발매시스템 개량 ISMP 용역 사업금액 사업목적
+    주요내용")로 top-10을 가져오면, 목표 문서(D017) 외에 무관한 문서 4~6개가
+    함께 후보에 섞여 들어오는 현상이 확인됐습니다. 이 노이즈가 실제로
+    답변 hallucination으로 이어진 사례도 재현됨(한국철도공사 사업금액을
+    답변에서 엉뚱한 노이즈 문서인 D010의 금액 316,800,000원으로 답함 —
+    실제 정답은 470,000,000원).
+
+    "1등 문서만 채택"(top-1) 방식도 시도했으나, 쿼리 1등과 2등의 검색
+    점수 차이가 근소하고 실제로는 2등 문서가 정답인 경우(대검찰청 케이스:
+    1등 D046 0.0292 vs 2등이자 정답인 D053 0.0268, 그러나 top-10 중
+    8개가 D053)가 확인되어 정답을 통째로 놓치는 부작용이 있었습니다.
+    그래서 "1등"이 아니라 "top-k 후보 안에서 가장 많이 등장한 doc_id"를
+    채택하는 다수결 방식으로 변경했습니다. Golden QA 다중문서 비교/종합
+    케이스(Q010, Q036, Q057, Q061, Q062, Q089) 및 한국철도공사 vs 대검찰청
+    케이스에서 노이즈 없이 목표 문서만 정확히 채택되는 것을 확인했습니다.
+
+    Args:
+        queries: split_comparison_entities() 등이 생성한 서브쿼리 리스트.
+        k_each: 서브쿼리 하나당 가져올 후보 청크 수(다수결 판단용 표본).
+        max_chunks_per_doc: 채택된 doc_id에서 실제로 담을 청크 수 상한.
+        top_n_docs: 서브쿼리 하나당 채택할 doc_id 개수(기본 1개).
+            3개 이상 엔티티를 비교하는 질문은 이 함수의 대상이 아닙니다
+            (split_comparison_entities()가 A/B 2개까지만 분리합니다).
+    """
+    from collections import Counter
+
+    picked: list = []
+    seen_keys = set()
+    for q in queries:
+        expanded_q = expand_requirement_table_query(q)
+        retrieved = retriever.retrieve(expanded_q, top_k=k_each)
+        docs = [_RetrievedDocAdapter(rc) for rc in retrieved]
+        if not docs:
+            continue
+
+        counts = Counter(doc.metadata.get("doc_id", "") for doc in docs)
+        top_doc_ids = [doc_id for doc_id, _ in counts.most_common(top_n_docs)]
+
+        for doc_id in top_doc_ids:
+            count = 0
+            for doc in docs:
+                if doc.metadata.get("doc_id", "") != doc_id:
+                    continue
+                key = (doc_id, doc.metadata.get("header_path", ""), doc.page_content[:50])
+                if key in seen_keys:
+                    continue
+                picked.append(doc)
+                seen_keys.add(key)
+                count += 1
+                if count >= max_chunks_per_doc:
+                    break
+
+    return picked
+
+
 # ─────────────────────────────────────────────
 # 쿼리 구성
 # ─────────────────────────────────────────────
@@ -327,7 +395,7 @@ def build_queries_for_row(row) -> list:
 
 
 _COMPARISON_CONJUNCTION_PATTERN = re.compile(
-    r"(.+?)(?:와|과)(?!학)\s*(.+?)(?:의)?\s*(?:차이점|공통점|비교)"
+    r"(.+?)(?:와|과)(?!학)\s*(.+?)(?:의)?\s*(?:차이점|차이|공통점|비교|각각)"
 )
 
 
@@ -991,6 +1059,40 @@ def suppress_duration_estimation(answer: str) -> str:
     return result.strip()
 
 
+_AMOUNT_DIFF_SENTENCE_PATTERN = re.compile(
+    r"[^.!?\n]*(?:보다|대비)[^.!?\n]*[\d,]+\s*원[^.!?\n]*(?:더\s*(?:큽니다|많습니다|높습니다)|더\s*(?:작습니다|적습니다|낮습니다))[^.!?\n]*[.!?]?"
+)
+
+
+def suppress_unrequested_amount_diff(answer: str, question: str) -> str:
+    """사용자가 명시적으로 차액을 묻지 않았는데도 모델이 두 금액의 차이를
+    직접 계산해서 제시하는 문장을 제거합니다.
+
+    prompt_template_multi_v1.txt의 21번 규칙("사용자가 명시적으로 '차이가
+    얼마인가요?'라고 묻지 않는 한 뺄셈 결과를 답변에 넣지 마세요")이 실제
+    프롬프트에는 정상 반영되지만, 모델이 이를 무시하고 "OO가 OO보다
+    12,549,600원 더 큽니다"처럼 계산 결과를 그대로 제시하는 사례가
+    반복 확인되어 추가한 후처리 가드레일입니다(suppress_duration_estimation()과
+    동일한 성격의 문제 — 프롬프트 규칙만으로는 완전한 통제가 안 됨).
+
+    질문에 "차이가 얼마", "차이는 얼마" 등 차액을 명시적으로 요청하는
+    표현이 있으면 이 가드레일을 적용하지 않습니다(21번 규칙 자체가
+    그 경우엔 뺄셈 결과 제시를 허용하기 때문입니다).
+    """
+    answer = str(answer)
+    question = str(question)
+
+    explicit_diff_request_markers = ["차이가 얼마", "차이는 얼마", "차액이 얼마", "얼마나 차이"]
+    if any(marker in question for marker in explicit_diff_request_markers):
+        return answer
+
+    sentences = re.split(r"(?<=[.!?])\s+|\n+", answer)
+    filtered = [s for s in sentences if not _AMOUNT_DIFF_SENTENCE_PATTERN.search(s)]
+    result = " ".join(s.strip() for s in filtered if s.strip())
+    result = re.sub(r"\s{2,}", " ", result)
+    return result.strip()
+
+
 _BROKEN_BOLD_REPEAT_PATTERN = re.compile(r"(\*\*\s*){2,}")
 
 
@@ -1020,6 +1122,7 @@ def postprocess_model_answer(answer: str, question: str) -> str:
     answer = remove_unasked_contact_info(answer, question)
     answer = enforce_insufficient_answer_policy(answer, question)
     answer = suppress_duration_estimation(answer)
+    answer = suppress_unrequested_amount_diff(answer, question)
     answer = clean_broken_markdown_bold(answer)
     return answer
 
