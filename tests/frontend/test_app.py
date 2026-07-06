@@ -113,6 +113,25 @@ def test_parse_related_questions_strips_numbering() -> None:
     assert _parse_related_questions("   ") == []
 
 
+def test_status_banner_when_rolled_back(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    status = tmp_path / "status.json"
+    status.write_text(
+        '{"state": "rolled_back", "sha": "abc1234", "message": "m", "at": "t"}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("RFP_STATUS_FILE", str(status))
+
+    at = _boot()
+    assert any("이전 안정 버전" in w.value for w in at.warning)
+
+
+def test_no_status_banner_without_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("RFP_STATUS_FILE", str(tmp_path / "missing.json"))
+
+    at = _boot()
+    assert len(at.warning) == 0
+
+
 def test_related_question_button_submits_query(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(views.chat, "RagApiClient", _FakeRagApiClient)
 

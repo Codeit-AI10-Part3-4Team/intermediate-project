@@ -10,6 +10,11 @@
 [Unit]
 Description=RFP RAG API (FastAPI/uvicorn, loopback:8090)
 After=network.target
+# 부팅 크래시 무한 재시작 방지: 5분 내 5회 실패하면 systemd가 멈춘다
+# (2026-07-06 vector_db 권한 사고에서 crash-loop 무한 반복).
+# 멈춘 유닛의 재시작은 deploy_vm.sh가 reset-failed로 해제한다.
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple

@@ -6,6 +6,7 @@
 import streamlit as st
 
 from styles import BASE_CSS
+from ui import render_status_banner
 from views import chat, home
 
 st.set_page_config(
@@ -47,6 +48,7 @@ def _route_home_submit() -> None:
 _init_state()
 _route_home_submit()
 st.html(BASE_CSS)
+render_status_banner()  # 배포 롤백/점검 상황을 사용자에게 전파 (평시엔 아무것도 안 그림)
 if st.session_state.screen == "home":
     home.render()
 else:
