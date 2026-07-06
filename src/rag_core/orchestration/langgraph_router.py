@@ -130,6 +130,8 @@ _EXTREMUM_KEYWORDS = [
     "최저 예산",
     "예산이 제일",
     "금액이 가장",
+    "가장 크고",
+    "가장 작고",
 ]
 _MULTI_DOC_KEYWORDS = ["비교", "vs", "VS", "차이", "각각", "두 사업", "여러 사업", "종합"]
 _GUARDRAIL_KEYWORDS = ["날씨", "주식", "오늘 뉴스", "너는 누구", "기술점수 몇 점", "당첨 확률"]
@@ -713,7 +715,14 @@ def rewrite_node(state: RagState) -> dict:
 def metadata_scan_node(state: RagState) -> dict:
     """전체 metadata 스캔으로 사업금액 최대/최솟값 문서 찾기."""
     question = state.get("rewritten_question", state["question"])
-    find_max = any(kw in question for kw in ["가장 큰", "최대", "최고", "가장 높은", "제일 큰"])
+    has_max = any(
+        kw in question
+        for kw in ["가장 큰", "최대", "최고", "가장 높은", "제일 큰", "가장 크고", "크고 작은"]
+    )
+    has_min = any(
+        kw in question
+        for kw in ["가장 작은", "최소", "가장 낮은", "제일 작은", "가장 작고", "크고 작은"]
+    )
 
     try:
         retriever = _get_active_retriever(state)
@@ -740,18 +749,23 @@ def metadata_scan_node(state: RagState) -> dict:
         def key_func(item):
             return item[1]["사업금액"]
 
-        _, result_meta = (
-            max(seen_docs.items(), key=key_func)
-            if find_max
-            else min(seen_docs.items(), key=key_func)
-        )
+        if not has_max and not has_min:
+            has_max = True
 
-        label = "가장 큰" if find_max else "가장 작은"
-        answer = (
+        parts = []
+        if has_max:
+            _, max_meta = max(seen_docs.items(), key=key_func)
+            parts.append(("가장 큰", max_meta))
+        if has_min:
+            _, min_meta = min(seen_docs.items(), key=key_func)
+            parts.append(("가장 작은", min_meta))
+
+        answer = "\n\n".join(
             f"예산이 {label} 사업은 다음과 같습니다.\n\n"
-            f"- 사업명: {result_meta.get('사업명', '정보 없음')}\n"
-            f"- 발주기관: {result_meta.get('발주기관', '정보 없음')}\n"
-            f"- 사업금액: {result_meta.get('사업금액', 0):,}원"
+            f"- 사업명: {meta.get('사업명', '정보 없음')}\n"
+            f"- 발주기관: {meta.get('발주기관', '정보 없음')}\n"
+            f"- 사업금액: {meta.get('사업금액', 0):,}원"
+            for label, meta in parts
         )
         return {
             "retrieved_chunks": [],
