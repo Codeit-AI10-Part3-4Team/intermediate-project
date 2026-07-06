@@ -162,7 +162,8 @@ def classify_question_keyword(question: str, has_history: bool) -> QuestionType:
     q = question.strip()
     if any(kw in q for kw in _GUARDRAIL_KEYWORDS):
         return "guardrail"
-    if any(kw in q for kw in _EXTREMUM_KEYWORDS):
+    _AMOUNT_KEYWORDS = ["예산", "사업금액", "금액", "사업비"]
+    if any(kw in q for kw in _EXTREMUM_KEYWORDS) and any(ak in q for ak in _AMOUNT_KEYWORDS):
         return "metadata_scan"
     if any(kw in q for kw in _REWRITE_KEYWORDS):
         return "rewrite"
