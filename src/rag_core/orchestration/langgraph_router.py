@@ -516,7 +516,8 @@ def multiturn_node(state: RagState) -> dict:
         raw_entities = split_comparison_entities(prev_question)
         entities = [e.replace("사업금액 사업목적 주요내용", "").strip() for e in raw_entities]
         if len(entities) >= 2:
-            rewritten = f"{entities[0]} {current_q} 그리고 {entities[1]} {current_q}"
+            rewritten = f"{entities[0]}와 {entities[1]} {current_q}"
+            return {"rewritten_question": rewritten, "question_type": "multi_doc_compare"}
         else:
             rewritten = f"{topic}에 대해 {current_q}"
     else:
@@ -1045,7 +1046,15 @@ def build_graph(chroma_dir: str = CHROMA_DIR_DEFAULT, use_checkpointer: bool = T
     graph.add_edge("single_doc_requirement", "generation")
     graph.add_edge("multi_doc_compare", "generation")
     graph.add_edge("multi_doc_summary", "generation")
-    graph.add_edge("multiturn", "single_doc_fact")
+    graph.add_conditional_edges(
+        "multiturn",
+        lambda s: s.get("question_type", "single_doc_fact"),
+        {
+            "multi_doc_compare": "multi_doc_compare",
+            "single_doc_fact": "single_doc_fact",
+            "single_doc_requirement": "single_doc_requirement",
+        },
+    )
     graph.add_edge("generation", END)
     graph.add_edge("metadata_scan", END)
     graph.add_edge("condition_filter", "generation")
