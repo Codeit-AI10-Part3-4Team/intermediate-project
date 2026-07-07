@@ -86,6 +86,8 @@ class LangGraphOrchestrator:
             state_input["history"] = []
         if company_info:
             state_input["company_info"] = company_info
+        if session_id:
+            state_input["session_id"] = session_id
 
         result = app.invoke(state_input, config=config)
 

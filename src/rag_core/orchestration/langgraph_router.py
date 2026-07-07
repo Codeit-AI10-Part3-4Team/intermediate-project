@@ -102,6 +102,7 @@ class RagState(TypedDict, total=False):
     # 입찰 적합도 분석 전용
     company_info: Optional[str]  # 사용자 입력 회사 정보 (없으면 A만 실행)
     bid_analysis: Optional[dict]  # 분석 결과 (항목별 점수, 종합 점수, 리스크 등)
+    session_id: Optional[str]  # 멀티턴 세션 ID
 
 
 QuestionType = Literal[
@@ -113,11 +114,31 @@ QuestionType = Literal[
     "guardrail",
     "bid_analysis",  # 입찰 적합도 분석
     "rewrite",  # 문체 변환
+    "condition_filter",  # 조건어 필터링
 ]
 
 # ──────────────────────────────────────────────
 # 1차 분류 — 키워드 기반
 # ──────────────────────────────────────────────
+
+_CONDITION_KEYWORDS = ["재공고", "긴급", "변경공고", "취소", "연장"]
+_CATEGORY_QUERY_KEYWORDS = [
+    "관련",
+    "종류",
+    "무엇이 있나",
+    "어떤 사업",
+    "어떤 기관",
+    "목록",
+    "있나요",
+    "있는가",
+]
+_DOMAIN_KEYWORDS = {
+    "의료": ["의료", "병원", "보건", "의학", "복지"],
+    "교육": ["교육", "학교", "대학", "학사", "학생"],
+    "금융": ["금융", "은행", "보험", "연금", "증권"],
+    "교통": ["교통", "버스", "철도", "운송", "물류"],
+    "안전": ["안전", "재난", "소방", "경찰", "방재"],
+}
 
 _EXTREMUM_KEYWORDS = [
     "가장 큰",
@@ -135,7 +156,17 @@ _EXTREMUM_KEYWORDS = [
 ]
 _MULTI_DOC_KEYWORDS = ["비교", "vs", "VS", "차이", "각각", "두 사업", "여러 사업", "종합"]
 _GUARDRAIL_KEYWORDS = ["날씨", "주식", "오늘 뉴스", "너는 누구", "기술점수 몇 점", "당첨 확률"]
-_MULTITURN_KEYWORDS = ["그 사업", "그것", "이전 질문", "방금", "그럼"]
+_MULTITURN_KEYWORDS = [
+    "그 사업",
+    "그것",
+    "이전 질문",
+    "방금",
+    "그럼",
+    "두 기관",
+    "두 사업",
+    "양쪽",
+    "각각의",
+]
 _REQUIREMENT_KEYWORDS = ["요구사항", "보안", "성능", "기능", "납품", "사양", "조건"]
 _BID_ANALYSIS_KEYWORDS = [
     "입찰 적합도",
@@ -164,6 +195,12 @@ def classify_question_keyword(question: str, has_history: bool) -> QuestionType:
     q = question.strip()
     if any(kw in q for kw in _GUARDRAIL_KEYWORDS):
         return "guardrail"
+    if any(kw in q for kw in _CONDITION_KEYWORDS):
+        return "condition_filter"
+    if any(kw in q for kw in _CATEGORY_QUERY_KEYWORDS) and any(
+        kw in q for domain_kws in _DOMAIN_KEYWORDS.values() for kw in domain_kws
+    ):
+        return "condition_filter"
     _AMOUNT_KEYWORDS = ["예산", "사업금액", "금액", "사업비"]
     if any(kw in q for kw in _EXTREMUM_KEYWORDS) and any(ak in q for ak in _AMOUNT_KEYWORDS):
         return "metadata_scan"
@@ -331,6 +368,16 @@ def single_doc_fact_node(state: RagState) -> dict:
     try:
         retriever = _get_active_retriever(state)
         retrieved = retriever.retrieve(question, top_k=TOP_K_DEFAULT)
+        # 문서 편중 방지 — doc_id당 최대 3청크
+        MAX_CHUNKS_PER_DOC = 3
+        per_doc: dict = {}
+        deduped = []
+        for r in retrieved:
+            doc_id = r.chunk.doc_id
+            if per_doc.get(doc_id, 0) < MAX_CHUNKS_PER_DOC:
+                deduped.append(r)
+                per_doc[doc_id] = per_doc.get(doc_id, 0) + 1
+        retrieved = deduped
         chunks = [r.chunk.text for r in retrieved]
         sources = [
             {
@@ -451,17 +498,32 @@ def multiturn_node(state: RagState) -> dict:
         "는 무엇인가요?",
         "을 설명해주세요",
         "이 궁금합니다",
+        "을 비교해줘",
+        "를 비교해줘",
+        "비교해줘",
+        "비교해 줘",
+        "비교해주세요",
         "?",
     ]:
         topic = topic.replace(suffix, "").strip()
 
     # 현재 질문의 대명사를 주제로 교체
+    PLURAL_PRONOUNS = ["두 사업", "두 기관", "두 기관 모두", "각각", "양쪽"]
     rewritten = current_q
-    for pronoun in ["그 사업", "그것", "해당 사업", "이 사업"]:
-        if pronoun in rewritten:
-            rewritten = rewritten.replace(pronoun, topic)
-            break
-
+    if any(kw in rewritten for kw in PLURAL_PRONOUNS):
+        # split_comparison_entities() 재사용 — "광주과학기술원"의 "과" 오인식 방지
+        # suffix("사업금액 사업목적 주요내용") 제거 후 사업명만 추출
+        raw_entities = split_comparison_entities(prev_question)
+        entities = [e.replace("사업금액 사업목적 주요내용", "").strip() for e in raw_entities]
+        if len(entities) >= 2:
+            rewritten = f"{entities[0]} {current_q} 그리고 {entities[1]} {current_q}"
+        else:
+            rewritten = f"{topic}에 대해 {current_q}"
+    else:
+        for pronoun in ["그 사업", "그것", "해당 사업", "이 사업"]:
+            if pronoun in rewritten:
+                rewritten = rewritten.replace(pronoun, topic)
+                break
     return {"rewritten_question": rewritten}
 
 
@@ -784,6 +846,76 @@ def metadata_scan_node(state: RagState) -> dict:
         }
 
 
+def condition_filter_node(state: RagState) -> dict:
+    """조건어 필터링: 재공고/긴급 등 조건이 있는 질문에서 해당 문서만 검색."""
+    question = state.get("rewritten_question", state["question"])
+    try:
+        retriever = _get_active_retriever(state)
+        collection = retriever.vectorstore._collection
+        results = collection.get(include=["metadatas"])
+        # 조건어 감지
+        matched_conditions = [kw for kw in _CONDITION_KEYWORDS if kw in question]
+        # 도메인 카테고리 감지
+        matched_domain_kws = [
+            kw for domain_kws in _DOMAIN_KEYWORDS.values() for kw in domain_kws if kw in question
+        ]
+        # 조건에 맞는 doc_id 추출
+        matched_doc_ids = set()
+        for meta in results.get("metadatas", []):
+            사업명 = meta.get("사업명", "")
+            발주기관 = meta.get("발주기관", "")
+            combined = 사업명 + 발주기관
+            if matched_conditions and any(cond in 사업명 for cond in matched_conditions):
+                matched_doc_ids.add(meta.get("doc_id", ""))
+            elif matched_domain_kws and any(kw in combined for kw in matched_domain_kws):
+                matched_doc_ids.add(meta.get("doc_id", ""))
+        if not matched_doc_ids:
+            return {
+                "retrieved_chunks": [],
+                "retrieved_sources": [],
+                "answer": f"'{', '.join(matched_conditions)}' 조건에 해당하는 사업을 찾을 수 없습니다.",
+            }
+        # 조건에 맞는 doc_id로 먼저 필터링 후 전체 청크 가져오기
+        filtered = collection.get(
+            include=["metadatas", "documents"],
+            where={"doc_id": {"$in": list(matched_doc_ids)}},
+        )
+        # RetrievedChunk 형태로 변환
+        from rag_core.retrieval.retriever import Chunk, RetrievedChunk
+
+        retrieved = []
+        for doc_text, meta in zip(filtered.get("documents", []), filtered.get("metadatas", [])):
+            chunk = Chunk(
+                chunk_id=meta.get("block_id", ""),
+                doc_id=meta.get("doc_id", ""),
+                text=doc_text,
+                metadata=meta,
+            )
+            retrieved.append(RetrievedChunk(chunk=chunk, score=1.0))
+        # doc_id당 최대 3청크
+        per_doc: dict = {}
+        deduped = []
+        for r in retrieved:
+            doc_id = r.chunk.doc_id
+            if per_doc.get(doc_id, 0) < 3:
+                deduped.append(r)
+                per_doc[doc_id] = per_doc.get(doc_id, 0) + 1
+        chunks = [r.chunk.text for r in deduped]
+        sources = [
+            {
+                "doc_id": r.chunk.doc_id,
+                "score": r.score,
+                "metadata": r.chunk.metadata,
+                "text": r.chunk.text,
+            }
+            for r in deduped
+        ]
+        return {"retrieved_chunks": chunks, "retrieved_sources": sources}
+    except Exception as e:
+        print(f"[ConditionFilter] 오류: {e}")
+        return {"retrieved_chunks": [], "retrieved_sources": [], "error": str(e)}
+
+
 def guardrail_node(state: RagState) -> dict:
     """가드레일: Retrieval 생략, 고정 응답 반환."""
     return {
@@ -884,6 +1016,7 @@ def build_graph(chroma_dir: str = CHROMA_DIR_DEFAULT, use_checkpointer: bool = T
     graph.add_node("guardrail", guardrail_node)
     graph.add_node("generation", generation_node)
     graph.add_node("metadata_scan", metadata_scan_node)
+    graph.add_node("condition_filter", condition_filter_node)
 
     graph.set_entry_point("query_rewriting")
     graph.add_edge("query_rewriting", "router")
@@ -898,6 +1031,7 @@ def build_graph(chroma_dir: str = CHROMA_DIR_DEFAULT, use_checkpointer: bool = T
             "multi_doc_summary": "multi_doc_summary",
             "multiturn": "multiturn",
             "metadata_scan": "metadata_scan",
+            "condition_filter": "condition_filter",
             "bid_analysis": "bid_analysis",
             "rewrite": "rewrite",
             "guardrail": "guardrail",
@@ -914,6 +1048,7 @@ def build_graph(chroma_dir: str = CHROMA_DIR_DEFAULT, use_checkpointer: bool = T
     graph.add_edge("multiturn", "single_doc_fact")
     graph.add_edge("generation", END)
     graph.add_edge("metadata_scan", END)
+    graph.add_edge("condition_filter", "generation")
 
     # 체크포인터는 멀티턴(session_id)용. 불필요하면 붙이지 않아 상태 누적을 원천 차단.
     if use_checkpointer:
