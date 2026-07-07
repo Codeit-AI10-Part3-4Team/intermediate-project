@@ -1133,6 +1133,53 @@ def suppress_duration_estimation(answer: str) -> str:
     return result.strip()
 
 
+_SPECULATIVE_CONTENT_MARKERS = [
+    "것으로 예상됩니다",
+    "것으로 보입니다",
+    "것으로 사료됩니다",
+    "것으로 추정됩니다",
+    "것으로 판단됩니다",
+    "예상되는",
+    "포함하고 있을 것",
+    "다루고 있을 것",
+    "가능성이 높습니다",
+    "일 가능성이 있습니다",
+]
+
+
+def suppress_speculative_document_content(answer: str) -> str:
+    """문서에 실제로 있는 내용을 인용하는 대신, 사업 유형(신규/고도화 등)에
+    대한 일반 상식만으로 "RFP에 이런 내용이 있을 것"이라고 추측하는 문장을
+    제거합니다.
+
+    Q044("신규 구축 사업과 고도화 사업의 RFP 구성 방식 차이는?")에서 검색된
+    문서(인천공항운영서비스 ERP 구축, 한국농수산식품유통공사 고도화 용역)의
+    실제 본문 내용은 인용하지 않고, "신규 구축이니 이런 내용을 다루고 있을
+    것으로 예상됩니다", "고도화 사업이니 이런 내용을 포함하고 있을 것으로
+    보입니다"처럼 사업 유형에 대한 일반 지식만으로 답변을 채우는 사례가
+    확인됐습니다. 이는 3번 규칙("검색된 문서에 없는 내용을 일반적인
+    사례처럼 보충하지 마세요")과 17번 규칙("가능성이 높습니다" 등 추측
+    표현 금지)을 동시에 위반합니다.
+
+    suppress_duration_estimation(), suppress_unrequested_amount_diff()와
+    같은 성격의 문제 — 프롬프트에 이미 명시된 규칙을 모델이 무시하는
+    경우에 대한 후처리 가드레일입니다. 문장 단위로 제거해 주어만 남고
+    문장이 끊기는 것을 방지합니다.
+
+    참고: 근거 부족 상황에서 사용되는 정상적인 안내 문구(예: "확인 가능한
+    근거가 부족합니다")는 이 마커들과 겹치지 않으므로 영향받지 않습니다.
+    """
+    answer = str(answer)
+
+    sentences = re.split(r"(?<=[.!?])\s+|\n+", answer)
+    filtered = [
+        s for s in sentences if not any(marker in s for marker in _SPECULATIVE_CONTENT_MARKERS)
+    ]
+    result = " ".join(s.strip() for s in filtered if s.strip())
+    result = re.sub(r"\s{2,}", " ", result)
+    return result.strip()
+
+
 _AMOUNT_DIFF_SENTENCE_PATTERN = re.compile(
     r"[^.!?\n]*(?:보다|대비)[^.!?\n]*[\d,]+\s*원[^.!?\n]*(?:더\s*(?:큽니다|많습니다|높습니다)|더\s*(?:작습니다|적습니다|낮습니다))[^.!?\n]*[.!?]?"
 )
@@ -1197,6 +1244,7 @@ def postprocess_model_answer(answer: str, question: str) -> str:
     answer = enforce_insufficient_answer_policy(answer, question)
     answer = suppress_duration_estimation(answer)
     answer = suppress_unrequested_amount_diff(answer, question)
+    answer = suppress_speculative_document_content(answer)
     answer = clean_broken_markdown_bold(answer)
     return answer
 
