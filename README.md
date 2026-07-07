@@ -190,3 +190,11 @@ mkdir -p data/chroma_db
 
 - 공공기관 RFP 문서 100개 (HWP 96건, PDF 4건)
 - 골든 데이터셋 v2: 123개 QA (Retrieval 101개 + Generation 22개)
+
+---
+
+## [협업일지](https://github.com/Codeit-AI10-Part3-4Team/intermediate-project/discussions)
+
+---
+
+## [보고서 PDF 파일](https://drive.google.com/file/d/1gDvjabdBILWUXG3ME3Ut1SmwOhVgshem/view?usp=drive_link)
