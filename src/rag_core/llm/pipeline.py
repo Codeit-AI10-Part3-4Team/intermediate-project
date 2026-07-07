@@ -655,7 +655,8 @@ def ask_exaone_from_docs(question, docs, is_multi_doc=False, max_retries=2) -> d
         post["flags"].append("empty_answer_fallback")
 
     amount_check = validate_amounts_against_metadata(post_answer, docs)
-    combined_flags = post["flags"] + amount_check["flags"]
+    org_check = detect_unlisted_orgs(post_answer, docs)
+    combined_flags = post["flags"] + amount_check["flags"] + org_check["flags"]
 
     followup = generate_followup(question, post_answer)
 
@@ -665,6 +666,7 @@ def ask_exaone_from_docs(question, docs, is_multi_doc=False, max_retries=2) -> d
         "attempt": attempt,
         "post_flags": combined_flags,
         "amount_mismatches": amount_check["mismatches"],
+        "unlisted_orgs": org_check["unlisted_orgs"],
         "guardrail_applied": None,
         "related_questions": followup,
         "style_prompt": "💡 이 내용을 다른 문체로 변환해 드릴 수 있어요. 원하시는 형식을 선택해 주세요: [공문서체] [사업제안서체] [보고서체]",
@@ -948,6 +950,78 @@ def validate_amounts_against_metadata(answer: str, docs) -> dict:
         if magnitude_matches:
             result["flags"].append("amount_magnitude_mismatch")
             result["mismatches"].append((amt, sorted(magnitude_matches)))
+
+    return result
+
+
+_ORG_SUFFIX_PATTERN = re.compile(
+    r"[가-힣A-Za-z0-9]{2,20}(?:부|처|청|원장|공사|공단|진흥원|재단|협회|센터|위원회|대학교|대학원|"
+    r"연구원|연구소|의료원|박물관|재활원|평가원|관리원|협력단|산학협력단)"
+)
+
+_ORG_STOPWORDS = {
+    "검색문서목록",
+    "검색결과",
+    "발주기관",
+    "확인가능한근거",
+    "질문한항목",
+}
+
+
+def detect_unlisted_orgs(answer: str, docs) -> dict:
+    """답변에 등장하는 기관명이 검색된 문서 목록에 실제로 존재하는지 점검합니다.
+
+    카테고리형 질문("의료 관련 기관이 발주한 IT 사업은?")에서 검색이 목표
+    문서를 충분히 찾지 못하면(Q057: top-10이 전부 한 문서의 청크로 채워짐),
+    "검색되었으나 관련 근거가 부족합니다"라고 답하는 대신 문서에 없는
+    기관명을 일반 상식으로 나열하는 hallucination이 확인됐습니다(보건복지부,
+    질병관리청, 국립암센터 등 — [검색 문서 목록]에 없는 기관명, 2번/15번/17번
+    규칙을 동시에 위반).
+
+    이 문제의 근본 원인(검색 단계에서 문서 다양성이 확보되지 않는 것)은
+    langgraph_router.py의 검색 로직 개선이 필요한 별개 사안이라 이 함수만으로
+    해결되지 않습니다. 다만 검색이 빈약한 상황에서도 최소한 답변에 없는
+    기관명이 새로 만들어져 나가는 것은 막을 수 있어, 방어선으로 추가합니다.
+
+    금액 검증(validate_amounts_against_metadata)과 마찬가지로 플래그만
+    남기고 답변 자체를 임의로 고치지는 않습니다 — 기관명이 포함된 문장을
+    통째로 삭제하면 문장 구조가 부자연스러워지거나 다른 유효한 내용까지
+    같이 날아갈 위험이 있고, 정규식 기반 기관명 추출은 완벽하지 않아
+    오탐(false positive) 가능성도 있기 때문입니다. 대신 이 flag를 근거로
+    사람이 검토하거나, 추후 반복 재현 시 프롬프트/검색 개선의 근거로
+    사용합니다.
+
+    Returns:
+        dict: {"flags": [...], "unlisted_orgs": [...]}
+    """
+    result: dict = {"flags": [], "unlisted_orgs": []}
+    if not isinstance(answer, str) or not answer.strip():
+        return result
+
+    valid_orgs = set()
+    for doc in docs:
+        org = str(doc.metadata.get("발주기관", "")).strip()
+        if org:
+            valid_orgs.add(org)
+
+    if not valid_orgs:
+        return result
+
+    candidates = set(_ORG_SUFFIX_PATTERN.findall(answer))
+
+    unlisted = []
+    for cand in candidates:
+        if cand in _ORG_STOPWORDS:
+            continue
+        # 답변의 기관명이 valid_orgs 중 하나에 부분 포함되거나(반대 방향 포함)
+        # 이미 알려진 기관과 일치하면 정상으로 간주
+        if any(cand in org or org in cand for org in valid_orgs):
+            continue
+        unlisted.append(cand)
+
+    if unlisted:
+        result["flags"].append("unlisted_org_mentioned")
+        result["unlisted_orgs"] = sorted(set(unlisted))
 
     return result
 
